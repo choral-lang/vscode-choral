@@ -1,8 +1,10 @@
 {
     "name": "vscode-choral",
-    "displayName": "vscode-choral",
+    "displayName": "Choral Language Extension",
     "description": "Support for the Choral programming language.",
     "version": "0.0.1",
+	"license": "MIT",
+    "publisher": "choral",
     "engines": {
         "vscode": "^1.76.0"
     },
