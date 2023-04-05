@@ -1,30 +1,30 @@
 {
-	"name": "vscode-choral",
-	"displayName": "vscode-choral",
-	"description": "Support for the Choral programming language.",
-	"version": "0.0.1",
-	"engines": {
-		"vscode": "^1.76.0"
-	},
-	"contributors": [ {
-			"name": "Fabrizio Montesi",
-			"email": "famontesi@gmail.com",
-			"url": "https://www.fabriziomontesi.com"
-	} ],
-	"categories": [
-		"Programming Languages"
-	],
-	"contributes": {
-		"languages": [{
-			"id": "choral",
-			"aliases": ["Choral", "choral"],
-			"extensions": [".ch",".chh"],
-			"configuration": "./language-configuration.json"
-		}],
-		"grammars": [{
-			"language": "choral",
-			"scopeName": "source.choral",
-			"path": "./syntaxes/choral.tmLanguage.json"
-		}]
-	}
+    "name": "vscode-choral",
+    "displayName": "vscode-choral",
+    "description": "Support for the Choral programming language.",
+    "version": "0.0.1",
+    "engines": {
+        "vscode": "^1.76.0"
+    },
+    "contributors": [{
+            "name": "Fabrizio Montesi",
+            "email": "famontesi@gmail.com",
+            "url": "https://www.fabriziomontesi.com"
+    }],
+    "categories": [
+        "Programming Languages"
+    ],
+    "contributes": {
+        "languages": [{
+            "id": "choral",
+            "aliases": ["Choral", "choral"],
+            "extensions": [".ch", ".chh"],
+            "configuration": "./language-configuration.json"
+        }],
+        "grammars": [{
+            "language": "choral",
+            "scopeName": "source.choral",
+            "path": "./syntaxes/choral.tmLanguage.json"
+        }]
+    }
 }
