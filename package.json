@@ -42,6 +42,18 @@
                 "scopeName": "source.choral",
                 "path": "./syntaxes/choral.tmLanguage.json"
             }
-        ]
+        ],
+        "configurationDefaults": {
+            "editor.tokenColorCustomizations": {
+                "textMateRules": [
+                    {
+                        "scope": "role.type.choral",
+                        "settings": {
+                            "foreground": "#ff8000"
+                        }
+                    }
+                ]
+            }
+        }
     }
 }

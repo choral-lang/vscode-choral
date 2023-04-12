@@ -320,6 +320,9 @@
                     "include": "#storage-modifiers"
                 },
                 {
+                    "include": "#roles"
+                },
+                {
                     "include": "#generics"
                 },
                 {
@@ -348,7 +351,7 @@
                     "name": "meta.definition.class.inherited.classes.java",
                     "patterns": [
                         {
-                            "include": "#object-types-inherited"
+                            "include": "#object-types"
                         },
                         {
                             "include": "#comments"
@@ -366,7 +369,7 @@
                     "name": "meta.definition.class.implemented.interfaces.java",
                     "patterns": [
                         {
-                            "include": "#object-types-inherited"
+                            "include": "#object-types"
                         },
                         {
                             "include": "#comments"
@@ -384,7 +387,7 @@
                     "name": "meta.definition.class.permits.classes.java",
                     "patterns": [
                         {
-                            "include": "#object-types-inherited"
+                            "include": "#object-types"
                         },
                         {
                             "include": "#comments"
@@ -429,35 +432,16 @@
                     "include": "#static-initializer"
                 },
                 {
-                    "include": "#class-fields-and-methods"
-                },
-                {
-                    "include": "#annotations"
-                },
-                {
-                    "include": "#storage-modifiers"
+                    "include": "#methods"
                 },
                 {
                     "include": "#member-variables"
                 },
                 {
-                    "include": "#code"
-                }
-            ]
-        },
-        "class-fields-and-methods": {
-            "patterns": [
-                {
-                    "begin": "(?=\\=)",
-                    "end": "(?=;)",
-                    "patterns": [
-                        {
-                            "include": "#code"
-                        }
-                    ]
+                    "include": "#annotations"
                 },
                 {
-                    "include": "#methods"
+                    "include": "#code"
                 }
             ]
         },
@@ -661,15 +645,26 @@
         "constants-and-special-vars": {
             "patterns": [
                 {
-                    "match": "\\b(true|false|null)\\b",
-                    "name": "constant.language.java"
+                    "match": "\\s*(true|false|null)(?:\\s*(@\\s*\\w+))?\\s*",
+                    "captures": {
+                        "1": {
+                            "name": "constant.language.java"
+                        },
+                        "2": {
+                            "patterns": [
+                                {
+                                    "include": "#roles"
+                                }
+                            ]
+                        }
+                    }
                 },
                 {
-                    "match": "\\bthis\\b",
+                    "match": "\\s*this\\s*",
                     "name": "variable.language.this.java"
                 },
                 {
-                    "match": "\\bsuper\\b",
+                    "match": "\\s*super\\s*",
                     "name": "variable.language.java"
                 }
             ]
@@ -700,6 +695,9 @@
             "name": "meta.enum.java",
             "patterns": [
                 {
+                    "include": "#roles"
+                },
+                {
                     "begin": "\\b(extends)\\b",
                     "beginCaptures": {
                         "1": {
@@ -710,7 +708,7 @@
                     "name": "meta.definition.class.inherited.classes.java",
                     "patterns": [
                         {
-                            "include": "#object-types-inherited"
+                            "include": "#object-types"
                         },
                         {
                             "include": "#comments"
@@ -728,7 +726,7 @@
                     "name": "meta.definition.class.implemented.interfaces.java",
                     "patterns": [
                         {
-                            "include": "#object-types-inherited"
+                            "include": "#object-types"
                         },
                         {
                             "include": "#comments"
@@ -865,7 +863,7 @@
                     "name": "storage.modifier.$1.java"
                 },
                 {
-                    "match": "(?<!\\.)([a-zA-Z$_][a-zA-Z0-9$_]*)(?=\\s*<)",
+                    "match": "([a-zA-Z$_][a-zA-Z0-9$_]*)",
                     "captures": {
                         "1": {
                             "name": "storage.type.java"
@@ -876,8 +874,7 @@
                     "include": "#primitive-arrays"
                 },
                 {
-                    "match": "[a-zA-Z$_][a-zA-Z0-9$_]*",
-                    "name": "storage.type.generic.java"
+                    "include": "#roles"
                 },
                 {
                     "match": "\\?",
@@ -1019,7 +1016,7 @@
             ]
         },
         "methods": {
-            "begin": "(?!new)(?=[\\w<].*\\s+)(?=([^=/]|/(?!/))+\\()",
+            "begin": "(?!new)(?!\\s*(public|protected|private)?\\s*\\w+\\s*@\\s*\\()(?=(public|protected|private)?\\s*(?=\\s*[\\w<].*\\s+)(?=([^=\\/]|\\/(?!\\/))+\\())",
             "end": "(})|(?=;)",
             "endCaptures": {
                 "1": {
@@ -1150,35 +1147,76 @@
         "numbers": {
             "patterns": [
                 {
-                    "match": "(?x)\n\\b(?<!\\$)\n0(x|X)\n(\n  (?<!\\.)[0-9a-fA-F]([0-9a-fA-F_]*[0-9a-fA-F])?[Ll]?(?!\\.)\n  |\n      (\n    [0-9a-fA-F]([0-9a-fA-F_]*[0-9a-fA-F])?\\.?\n    |\n        ([0-9a-fA-F]([0-9a-fA-F_]*[0-9a-fA-F])?)?\\.[0-9a-fA-F]([0-9a-fA-F_]*[0-9a-fA-F])?\n      )\n  [Pp][+-]?[0-9]([0-9_]*[0-9])?[FfDd]?\n)\n\\b(?!\\$)",
-                    "name": "constant.numeric.hex.java"
+                    "match": "(?x)\n(\\b(?<!\\$)\n0(?:x|X)\n(?:\n  (?<!\\.)[0-9a-fA-F](?:[0-9a-fA-F_]*[0-9a-fA-F])?[Ll]?(?!\\.)\n  |\n      (?:\n    [0-9a-fA-F](?:[0-9a-fA-F_]*[0-9a-fA-F])?\\.?\n    |\n        (?:[0-9a-fA-F](?:[0-9a-fA-F_]*[0-9a-fA-F])?)?\\.[0-9a-fA-F](?:[0-9a-fA-F_]*[0-9a-fA-F])?\n      )\n  [Pp][+-]?[0-9](?:[0-9_]*[0-9])?[FfDd]?\n)\n\\b(?!\\$))(?:\\s*(@\\s*\\w+))?",
+                    "captures": {
+                        "1": {
+                            "name": "constant.numeric.hex.java"
+                        },
+                        "2": {
+                            "patterns": [
+                                {
+                                    "include": "#roles"
+                                }
+                            ]
+                        }
+                    }
                 },
                 {
-                    "match": "\\b(?<!\\$)0(b|B)[01]([01_]*[01])?[Ll]?\\b(?!\\$)",
-                    "name": "constant.numeric.binary.java"
+                    "match": "(\\b(?<!\\$)0(?:b|B)[01](?:[01_]*[01])?[Ll]?\\b(?!\\$))(?:\\s*(@\\s*\\w+))?",
+                    "captures": {
+                        "1": {
+                            "name": "constant.numeric.binary.java"
+                        },
+                        "2": {
+                            "patterns": [
+                                {
+                                    "include": "#roles"
+                                }
+                            ]
+                        }
+                    }
                 },
                 {
-                    "match": "\\b(?<!\\$)0[0-7]([0-7_]*[0-7])?[Ll]?\\b(?!\\$)",
-                    "name": "constant.numeric.octal.java"
+                    "match": "(\\b(?<!\\$)0[0-7](?:[0-7_]*[0-7])?[Ll]?\\b(?!\\$))(?:\\s*(@\\s*\\w+))?",
+                    "captures": {
+                        "1": {
+                            "name": "constant.numeric.octal.java"
+                        },
+                        "2": {
+                            "patterns": [
+                                {
+                                    "include": "#roles"
+                                }
+                            ]
+                        }
+                    }
                 },
                 {
-                    "match": "(?x)\n(?<!\\$)\n(\n  \\b[0-9]([0-9_]*[0-9])?\\.\\B(?!\\.)\n  |\n  \\b[0-9]([0-9_]*[0-9])?\\.([Ee][+-]?[0-9]([0-9_]*[0-9])?)[FfDd]?\\b\n  |\n  \\b[0-9]([0-9_]*[0-9])?\\.([Ee][+-]?[0-9]([0-9_]*[0-9])?)?[FfDd]\\b\n  |\n  \\b[0-9]([0-9_]*[0-9])?\\.([0-9]([0-9_]*[0-9])?)([Ee][+-]?[0-9]([0-9_]*[0-9])?)?[FfDd]?\\b\n  |\n  (?<!\\.)\\B\\.[0-9]([0-9_]*[0-9])?([Ee][+-]?[0-9]([0-9_]*[0-9])?)?[FfDd]?\\b\n  |\n  \\b[0-9]([0-9_]*[0-9])?([Ee][+-]?[0-9]([0-9_]*[0-9])?)[FfDd]?\\b\n  |\n      \\b[0-9]([0-9_]*[0-9])?([Ee][+-]?[0-9]([0-9_]*[0-9])?)?[FfDd]\\b\n      |\n  \\b(0|[1-9]([0-9_]*[0-9])?)(?!\\.)[Ll]?\\b\n)\n(?!\\$)",
-                    "name": "constant.numeric.decimal.java"
+                    "match": "(?x)\n((?<!\\$)\n(?:\n  \\b[0-9](?:[0-9_]*[0-9])?\\.\\B(?!\\.)\n  |\n  \\b[0-9](?:[0-9_]*[0-9])?\\.(?:[Ee][+-]?[0-9](?:[0-9_]*[0-9])?)[FfDd]?\\b\n  |\n  \\b[0-9](?:[0-9_]*[0-9])?\\.(?:[Ee][+-]?[0-9](?:[0-9_]*[0-9])?)?[FfDd]\\b\n  |\n  \\b[0-9](?:[0-9_]*[0-9])?\\.(?:[0-9](?:[0-9_]*[0-9])?)(?:[Ee][+-]?[0-9](?:[0-9_]*[0-9])?)?[FfDd]?\\b\n  |\n  (?<!\\.)\\B\\.[0-9](?:[0-9_]*[0-9])?(?:[Ee][+-]?[0-9](?:[0-9_]*[0-9])?)?[FfDd]?\\b\n  |\n  \\b[0-9](?:[0-9_]*[0-9])?(?:[Ee][+-]?[0-9](?:[0-9_]*[0-9])?)[FfDd]?\\b\n  |\n      \\b[0-9](?:[0-9_]*[0-9])?(?:[Ee][+-]?[0-9](?:[0-9_]*[0-9])?)?[FfDd]\\b\n      |\n  \\b(?:0|[1-9](?:[0-9_]*[0-9])?)(?!\\.)[Ll]?\\b\n)\n(?!\\$))(?:\\s*(@\\s*\\w+))?",
+                    "captures": {
+                        "1": {
+                            "name": "constant.numeric.decimal.java"
+                        },
+                        "2": {
+                            "patterns": [
+                                {
+                                    "include": "#roles"
+                                }
+                            ]
+                        }
+                    }
                 }
             ]
         },
         "object-types": {
             "patterns": [
                 {
-                    "include": "#generics"
-                },
-                {
                     "begin": "\\b((?:[A-Za-z_]\\w*\\s*\\.\\s*)*)([A-Z_]\\w*)\\s*(?=\\[)",
                     "beginCaptures": {
                         "1": {
                             "patterns": [
                                 {
-                                    "match": "[A-Za-z_]\\w*",
+                                    "match": "[A-Z_]\\w*",
                                     "name": "storage.type.java"
                                 },
                                 {
@@ -1202,12 +1240,13 @@
                     ]
                 },
                 {
-                    "match": "\\b((?:[A-Za-z_]\\w*\\s*\\.\\s*)*[A-Z_]\\w*)\\s*(?=<)",
+                    "begin": "\\b((?:[A-Za-z_]\\w*\\s*\\.\\s*)*[A-Z_]\\w*)(?:\\s*(@\\s*(?:\\w+|\\([^\\(\\)]+?\\))))?\\s*(?=<)",
+                    "end": "(?<=>)",
                     "captures": {
                         "1": {
                             "patterns": [
                                 {
-                                    "match": "[A-Za-z_]\\w*",
+                                    "match": "[A-Z_]\\w*",
                                     "name": "storage.type.java"
                                 },
                                 {
@@ -1215,16 +1254,28 @@
                                     "name": "punctuation.separator.period.java"
                                 }
                             ]
+                        },
+                        "2": {
+                            "patterns": [
+                                {
+                                    "include": "#roles"
+                                }
+                            ]
                         }
-                    }
+                    },
+                    "patterns": [
+                        {
+                            "include": "#generics"
+                        }
+                    ]
                 },
                 {
-                    "match": "\\b((?:[A-Za-z_]\\w*\\s*\\.\\s*)*[A-Z_]\\w*)\\b((?=\\s*[A-Za-z$_\\n])|(?=\\s*\\.\\.\\.))",
+                    "match": "\\b((?:[A-Za-z_]\\w*\\s*\\.\\s*)*[A-Z_]\\w*)(?:\\s*(@\\s*(?:\\w+|\\([^\\(\\)]+?\\))))?",
                     "captures": {
                         "1": {
                             "patterns": [
                                 {
-                                    "match": "[A-Za-z_]\\w*",
+                                    "match": "[A-Z_]\\w*",
                                     "name": "storage.type.java"
                                 },
                                 {
@@ -1232,28 +1283,15 @@
                                     "name": "punctuation.separator.period.java"
                                 }
                             ]
+                        },
+                        "2": {
+                            "patterns": [
+                                {
+                                    "include": "#roles"
+                                }
+                            ]
                         }
                     }
-                }
-            ]
-        },
-        "object-types-inherited": {
-            "patterns": [
-                {
-                    "include": "#generics"
-                },
-                {
-                    "match": "\\b(?:[A-Z]\\w*\\s*(\\.)\\s*)*[A-Z]\\w*\\b",
-                    "name": "entity.other.inherited-class.java",
-                    "captures": {
-                        "1": {
-                            "name": "punctuation.separator.period.java"
-                        }
-                    }
-                },
-                {
-                    "match": ",",
-                    "name": "punctuation.separator.delimiter.java"
                 }
             ]
         },
@@ -1262,6 +1300,18 @@
             "name": "variable.other.object.java"
         },
         "parameters": {
+            "begin": "(?<=(?:\\(|,))",
+            "end": "(?=(\\w+)\\s*(?:,|\\)))",
+            "endCaptures": {
+                "1": {
+                    "patterns": [
+                        {
+                            "match": ".+",
+                            "name": "variable.parameter.java"
+                        }
+                    ]
+                }
+            },
             "patterns": [
                 {
                     "match": "\\bfinal\\b",
@@ -1275,10 +1325,6 @@
                 },
                 {
                     "include": "#strings"
-                },
-                {
-                    "match": "\\w+",
-                    "name": "variable.parameter.java"
                 },
                 {
                     "match": ",",
@@ -1373,8 +1419,19 @@
             ]
         },
         "primitive-types": {
-            "match": "\\b(void|boolean|byte|char|short|int|float|long|double)\\b",
-            "name": "storage.type.primitive.java"
+            "match": "\\b(void|boolean|byte|char|short|int|float|long|double)(?:\\s*(@\\s*\\w+))?\\b",
+            "captures": {
+                "1": {
+                    "name": "storage.type.primitive.java"
+                },
+                "2": {
+                    "patterns": [
+                        {
+                            "include": "#roles"
+                        }
+                    ]
+                }
+            }
         },
         "properties": {
             "patterns": [
@@ -1554,6 +1611,60 @@
                 }
             ]
         },
+        "roles": {
+            "patterns": [
+                {
+                    "match": "(@)\\s*(\\w+)",
+                    "name": "meta.role.choral",
+                    "captures": {
+                        "1": {
+                            "name": "punctuation.role.choral"
+                        },
+                        "2": {
+                            "name": "storage.type.java",
+                            "patterns": [
+                                {
+                                    "match": ".+",
+                                    "name": "role.type.choral"
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "match": "(@)\\s*(\\()([^\\(\\)]+?)(\\))",
+                    "name": "meta.role.choral",
+                    "captures": {
+                        "1": {
+                            "name": "punctuation.role.choral"
+                        },
+                        "2": {
+                            "name": "punctuation.bracket.round.java"
+                        },
+                        "3": {
+                            "patterns": [
+                                {
+                                    "match": "\\w+",
+                                    "name": "storage.type.java",
+                                    "captures": {
+                                        "0": {
+                                            "name": "role.type.choral"
+                                        }
+                                    }
+                                },
+                                {
+                                    "match": ",",
+                                    "name": "punctuation.separator.delimiter.java"
+                                }
+                            ]
+                        },
+                        "4": {
+                            "name": "punctuation.bracket.round.java"
+                        }
+                    }
+                }
+            ]
+        },
         "static-initializer": {
             "patterns": [
                 {
@@ -1575,16 +1686,35 @@
                     "begin": "\"",
                     "beginCaptures": {
                         "0": {
-                            "name": "punctuation.definition.string.begin.java"
+                            "name": "string.quoted.double.java",
+                            "patterns": [
+                                {
+                                    "match": ".+",
+                                    "name": "punctuation.definition.string.begin.java"
+                                }
+                            ]
                         }
                     },
-                    "end": "\"",
+                    "end": "(\")(@\\s*\\w+)?",
                     "endCaptures": {
-                        "0": {
-                            "name": "punctuation.definition.string.end.java"
+                        "1": {
+                            "name": "string.quoted.double.java",
+                            "patterns": [
+                                {
+                                    "match": ".+",
+                                    "name": "punctuation.definition.string.end.java"
+                                }
+                            ]
+                        },
+                        "2": {
+                            "patterns": [
+                                {
+                                    "include": "#roles"
+                                }
+                            ]
                         }
                     },
-                    "name": "string.quoted.double.java",
+                    "contentName": "string.quoted.double.java",
                     "patterns": [
                         {
                             "match": "\\\\.",
@@ -1809,8 +1939,8 @@
             ]
         },
         "variables": {
-            "begin": "(?x)\n(?=\n  \\b\n  (\n    (void|boolean|byte|char|short|int|float|long|double)\n        |\n    (?>(\\w+\\.)*[A-Z_]+\\w*) # e.g. `javax.ws.rs.Response`, or `String`\n  )\n  \\b\n  \\s*\n  (\n    <[\\w<>,\\.?\\s\\[\\]]*> # e.g. `HashMap<Integer, String>`, or `List<java.lang.String>`\n  )?\n  \\s*\n  (\n    (\\[\\])* # int[][]\n  )?\n  \\s+\n  [A-Za-z_$][\\w$]* # At least one identifier after space\n      ([\\w\\[\\],$][\\w\\[\\],\\s]*)? # possibly primitive array or additional identifiers\n  \\s*(=|:|;)\n)",
-            "end": "(?=\\=|:|;)",
+            "begin": "(?x)\n(?=\n  \\b\n  (\n    (void|boolean|byte|char|short|int|float|long|double)\n        |\n    (?>(\\w+\\.)*[A-Z_]+\\w*) # e.g. `javax.ws.rs.Response`, or `String`\n  )\n  \\b\n  \\s*\n  \\s*(@\\s*(\\w+|\\([^\\(\\)]+?\\)))?\n  (\n    <[\\w@<>,\\.?\\s\\[\\]]*> # e.g. `HashMap<Integer, String>`, or `List<java.lang.String>`\n  )?\n  \\s*\n  (\n    (\\[\\])* # int[][]\n  )?\n  \\s+\n  [A-Za-z_$][\\w$]* # At least one identifier after space\n      ([\\w\\[\\],$][\\w\\[\\],\\s]*)? # possibly primitive array or additional identifiers\n  \\s*(=|:|;)\n)",
+            "end": "(?=:|;)",
             "name": "meta.definition.variable.java",
             "patterns": [
                 {
