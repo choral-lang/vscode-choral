@@ -20,6 +20,10 @@
             "email": "lugovic@imada.sdu.dk"
         }
     ],
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/choral-lang/vscode-choral"
+    },
     "categories": [
         "Programming Languages"
     ],
