@@ -3,7 +3,7 @@
     "displayName": "Choral Language Extension",
     "description": "Support for the Choral programming language.",
     "version": "0.0.1",
-	"license": "MIT",
+    "license": "MIT",
     "icon": "./images/icon.png",
     "publisher": "choral",
     "engines": {
@@ -28,11 +28,27 @@
         "Programming Languages"
     ],
     "contributes": {
+        "commands": [
+            {
+                "command": "choral-syntax-extension.helloWorld",
+                "title": "Display Greetings"
+            },
+            {
+                "command": "choral-syntax-extension.displayTime",
+                "title": "Display Time"
+            }
+        ],
         "languages": [
             {
                 "id": "choral",
-                "aliases": ["Choral", "choral"],
-                "extensions": [".ch", ".chh"],
+                "aliases": [
+                    "Choral",
+                    "choral"
+                ],
+                "extensions": [
+                    ".ch",
+                    ".chh"
+                ],
                 "configuration": "./language-configuration.json",
                 "icon": {
                     "light": "./images/icon-small.png",
@@ -59,5 +75,24 @@
                 ]
             }
         }
+    },
+    "scripts": {
+        "vscode:prepublish": "npm run compile",
+        "compile": "tsc -p ./",
+        "watch": "tsc -watch -p ./",
+        "pretest": "npm run compile && npm run lint",
+        "lint": "eslint src",
+        "test": "vscode-test"
+    },
+    "devDependencies": {
+        "@types/mocha": "^10.0.10",
+        "@types/node": "24.x",
+        "@types/vscode": "^1.79.2",
+        "@typescript-eslint/eslint-plugin": "^8.42.0",
+        "@typescript-eslint/parser": "^8.42.0",
+        "@vscode/test-cli": "^0.0.11",
+        "@vscode/test-electron": "^2.5.2",
+        "eslint": "^9.34.0",
+        "typescript": "^5.9.2"
     }
 }
