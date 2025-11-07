@@ -1,0 +1,31 @@
+{
+    "name": "vscode-choral",
+    "description": "Support for the Choral programming language.",
+    "version": "0.0.1",
+    "author": "choral",
+    "license": "MIT",
+    "publisher": "choral",
+    "private": true,
+    "engines": {
+        "vscode": "^1.76.0"
+    },
+    "scripts": {
+        "compile": "tsc -p ./",
+        "watch": "tsc -watch -p ./",
+        "lint": "eslint src",
+        "test": "vscode-test"
+    },
+    "dependencies": {
+        "vscode-languageclient": "^9.0.1"
+    },
+    "devDependencies": {
+        "@types/node": "24.x",
+        "@types/vscode": "^1.79.2",
+        "@typescript-eslint/eslint-plugin": "^8.42.0",
+        "@typescript-eslint/parser": "^8.42.0",
+        "@vscode/test-cli": "^0.0.11",
+        "@vscode/test-electron": "^2.5.2",
+        "eslint": "^9.34.0",
+        "typescript": "^5.9.2"
+    }
+}

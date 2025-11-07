@@ -27,6 +27,7 @@
     "categories": [
         "Programming Languages"
     ],
+    "main": "./client/out/extension.js",
     "contributes": {
         "commands": [
             {
@@ -63,6 +64,26 @@
                 "path": "./syntaxes/choral.tmLanguage.json"
             }
         ],
+        "configuration": {
+            "title": "Choral",
+            "properties": {
+                "myLanguage.maxNumberOfProblems": {
+                    "type": "number",
+                    "default": 100,
+                    "description": "Maximum number of problems reported"
+                },
+                "myLanguage.trace.server": {
+                    "type": "string",
+                    "enum": [
+                        "off",
+                        "messages",
+                        "verbose"
+                    ],
+                    "default": "off",
+                    "description": "Traces communication between VSCode and language server"
+                }
+            }
+        },
         "configurationDefaults": {
             "editor.tokenColorCustomizations": {
                 "textMateRules": [
@@ -78,21 +99,23 @@
     },
     "scripts": {
         "vscode:prepublish": "npm run compile",
-        "compile": "tsc -p ./",
-        "watch": "tsc -watch -p ./",
-        "pretest": "npm run compile && npm run lint",
-        "lint": "eslint src",
-        "test": "vscode-test"
+        "compile": "npm run compile:client && npm run compile:server",
+        "compile:client": "cd client && npm run compile",
+        "compile:server": "cd server && npm run compile",
+        "watch": "concurrently \"npm run watch:client\" \"npm run watch:server\"",
+        "watch:client": "cd client && npm run watch",
+        "watch:server": "cd server && npm run watch",
+        "lint": "npm run lint:client && npm run lint:server",
+        "lint:client": "cd client && npm run lint",
+        "lint:server": "cd server && npm run lint",
+        "test": "npm run test:client && npm run test:server",
+        "test:client": "cd client && npm run test",
+        "test:server": "cd server && npm run test",
+        "package": "vsce package",
+        "publish": "vsce publish"
     },
     "devDependencies": {
-        "@types/mocha": "^10.0.10",
-        "@types/node": "24.x",
-        "@types/vscode": "^1.79.2",
-        "@typescript-eslint/eslint-plugin": "^8.42.0",
-        "@typescript-eslint/parser": "^8.42.0",
-        "@vscode/test-cli": "^0.0.11",
-        "@vscode/test-electron": "^2.5.2",
-        "eslint": "^9.34.0",
-        "typescript": "^5.9.2"
+        "concurrently": "^8.2.0",
+        "@vscode/vsce": "^2.19.0"
     }
 }
