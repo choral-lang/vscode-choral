@@ -67,12 +67,12 @@
         "configuration": {
             "title": "Choral",
             "properties": {
-                "myLanguage.maxNumberOfProblems": {
+                "choral.maxNumberOfProblems": {
                     "type": "number",
                     "default": 100,
                     "description": "Maximum number of problems reported"
                 },
-                "myLanguage.trace.server": {
+                "choral.trace.server": {
                     "type": "string",
                     "enum": [
                         "off",
