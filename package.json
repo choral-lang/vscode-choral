@@ -29,16 +29,6 @@
     ],
     "main": "./client/out/extension.js",
     "contributes": {
-        "commands": [
-            {
-                "command": "choral-syntax-extension.helloWorld",
-                "title": "Display Greetings"
-            },
-            {
-                "command": "choral-syntax-extension.displayTime",
-                "title": "Display Time"
-            }
-        ],
         "languages": [
             {
                 "id": "choral",
@@ -68,6 +58,7 @@
             "title": "Choral",
             "properties": {
                 "choral.maxNumberOfProblems": {
+                    "scope": "resource",
                     "type": "number",
                     "default": 100,
                     "description": "Maximum number of problems reported"

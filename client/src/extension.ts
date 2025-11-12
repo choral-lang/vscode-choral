@@ -2,7 +2,15 @@
 // Import the module and reference it with the alias vscode in your code below
 import * as vscode from 'vscode';
 import { workspace, ExtensionContext } from 'vscode';
+import {
+	LanguageClient,
+	LanguageClientOptions,
+	ServerOptions,
+	TransportKind
+} from 'vscode-languageclient/node';
+import * as path from 'path';
 
+let client: LanguageClient;
 
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
@@ -10,22 +18,37 @@ export function activate(context: vscode.ExtensionContext) {
 
 	// Use the console to output diagnostic information (console.log) and errors (console.error)
 	// This line of code will only be executed once when your extension is activated
-	console.log('Congratulations, your extension "choral-syntax-extension" is now active!');
+	console.log('Congratulations, the extension "choral-syntax-extension" is now active!');
 
-	// The command has been defined in the package.json file
-	// Now provide the implementation of the command with registerCommand
-	// The commandId parameter must match the command field in package.json
-	const disposable = vscode.commands.registerCommand('choral-syntax-extension.helloWorld', () => {
-		// The code you place here will be executed every time your command is executed
-		// Display a message box to the user
-		vscode.window.showWarningMessage('Hello VS Code from Choral Syntax Extension!');
-	});
+	const serverModule: string = context.asAbsolutePath(path.join('server', 'out', 'server.js'));
+	const serverOptions: ServerOptions = {
+		run: { module: serverModule, transport: TransportKind.ipc },
+		debug: {
+			module: serverModule,
+			transport: TransportKind.ipc,
+			options: { execArgv: ['--nolazy', '--inspect=6009'] }
+		}
+	};
+	const clientOptions: LanguageClientOptions = {
+		documentSelector: [{ scheme: 'file', language: 'choral' }],
+		synchronize: {
+			fileEvents: workspace.createFileSystemWatcher('**/*.ch')
+		}
+	};
+	client = new LanguageClient(
+		'choralLanguageServer',
+		'Choral Language Server',
+		serverOptions,
+		clientOptions
+	)
 
-	const time = vscode.commands.registerCommand('choral-syntax-extension.displayTime', () => {
-		let now = new Date();
-		vscode.window.showInformationMessage('Current time is: ' + now);
-	});
+	//client.start();
 }
 
 // This method is called when your extension is deactivated
-export function deactivate() { }
+export function deactivate(): Thenable<void> | undefined {
+	if (!client) {
+		return undefined;
+	}
+	return client.stop();
+}
