@@ -23,8 +23,7 @@ export function activate(context: vscode.ExtensionContext) {
 
 	const serverModule: string = context.asAbsolutePath(path.join('server', 'out', 'server.js')); // this needs revising once proper path has been figured out
 
-	const serverOptions: ServerOptions = { // these options need to be revisied to run a java program somehow
-		// likely need to add actual options specific to the Choral LSP "server" once those have been implemented
+	const serverOptions: ServerOptions = {
 		run: {
 			command: "choral",
 			args: ["lsp"], // this would be a command as those specified in `choral -h`
