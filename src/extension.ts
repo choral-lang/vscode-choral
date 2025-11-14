@@ -6,7 +6,6 @@ import {
 	LanguageClient,
 	LanguageClientOptions,
 	ServerOptions,
-	TransportKind
 } from 'vscode-languageclient/node';
 import * as path from 'path';
 
@@ -26,11 +25,14 @@ export function activate(context: vscode.ExtensionContext) {
 
 	const serverOptions: ServerOptions = { // these options need to be revisied to run a java program somehow
 		// likely need to add actual options specific to the Choral LSP "server" once those have been implemented
-		run: { module: serverModule, transport: TransportKind.ipc },
+		run: {
+			command: "choral",
+			args: ["lsp"], // this would be a command as those specified in `choral -h`
+		},
 		debug: {
-			module: serverModule,
-			transport: TransportKind.ipc,
-			options: { execArgv: ['--nolazy', '--inspect=6009'] }
+			command: "choral",
+			args: ["lsp", "--debug"] // for now this is the option stated in the Options section of `choral -h`
+			// might need a dedicated option in future
 		}
 	};
 
