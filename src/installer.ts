@@ -14,6 +14,19 @@ const CHORAL_ZIP_URL = `https://github.com/choral-lang/choral/releases/download/
  * @returns The path to the choral-standalone.jar file
  */
 export async function findOrInstallChoral(context: vscode.ExtensionContext): Promise<string> {
+    // 1) Check if CHORAL_HOME is defined
+    const choralHome = process.env.CHORAL_HOME;
+    if (choralHome) {
+        console.log('✓ CHORAL_HOME is defined:', choralHome);
+        const candidate = path.join(choralHome, 'choral-standalone.jar');
+        if (fs.existsSync(candidate)) {
+            vscode.window.showInformationMessage(`Using LSP server defined in $CHORAL_HOME: ${choralHome}`);
+            return candidate;
+        }
+        console.warn('✗ CHORAL_HOME is defined but JAR not found at:', candidate);
+    }
+
+    // 2) Check if the JAR is already in VS Code storage
     const storageDir = context.globalStorageUri.fsPath;
     
     // Ensure storage directory exists
@@ -23,12 +36,12 @@ export async function findOrInstallChoral(context: vscode.ExtensionContext): Pro
 
     const jarPath = path.join(storageDir, 'choral', 'dist', 'choral-standalone.jar');
     
-    // Check if JAR already exists
     if (fs.existsSync(jarPath)) {
         console.log('✓ Choral JAR already exists at:', jarPath);
         return jarPath;
     }
 
+    // 3) Download the latest release
     console.log('Downloading Choral from:', CHORAL_ZIP_URL);
     
     // Show progress notification
