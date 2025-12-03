@@ -9,33 +9,21 @@ import {
 	LanguageClientOptions,
 	ServerOptions,
 } from 'vscode-languageclient/node';
+import { findOrInstallChoral } from './installer';
 
 let client: LanguageClient;
 
-// This method is called when extension is activated
-// extension is activated the very first time the command is executed
-export function activate(context: vscode.ExtensionContext) {
+// This method is called when extension is activated.
+// Extension is activated the very first time the command is executed
+export async function activate(context: vscode.ExtensionContext) {
 
-	// Use the console to output diagnostic information (console.log) and errors (console.error)
-	// This line of code will only be executed once when your extension is activated
-	console.log('Congratulations, the extension "choral-syntax-extension" is now running! testing');
-
+	console.log('Activating the Choral VS Code extension...');
+	
 	// Refer to: https://github.com/tempo-lang/vscode-tempo/blob/main/src/extension.ts
-
 	try {
-		// For testing purposes this is how the compiler is found. 
-		// In future it would probably be ideal to use CHORAL_HOME instead. 
-		const serverJarPath: string = context.asAbsolutePath(path.join('server', 'choral-standalone.jar'));
-		console.log('Looking for JAR at:', serverJarPath);
-
-		const fs = require('fs');
-		if (fs.existsSync(serverJarPath)) {
-			console.log('✓ JAR file exists');
-		} else {
-			console.error('✗ JAR file NOT FOUND at:', serverJarPath);
-			vscode.window.showErrorMessage('Choral LSP JAR not found at: ' + serverJarPath);
-			return;
-		}
+		// Download and ensure the Choral JAR is available
+		const serverJarPath: string = await findOrInstallChoral(context);
+		console.log('Using JAR at:', serverJarPath);
 
 		const serverOptions: ServerOptions = {
 			run: {
