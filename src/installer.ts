@@ -5,7 +5,7 @@ import * as vscode from 'vscode';
 import { createWriteStream, createReadStream } from 'fs';
 import AdmZip from 'adm-zip';
 
-const CHORAL_VERSION = '0.1.10';
+const CHORAL_VERSION = '0.1.11';
 const CHORAL_ZIP_URL = `https://github.com/choral-lang/choral/releases/download/v${CHORAL_VERSION}/choral-${CHORAL_VERSION}.zip`;
 
 /**
@@ -28,14 +28,14 @@ export async function findOrInstallChoral(context: vscode.ExtensionContext): Pro
 
     // 2) Check if the JAR is already in VS Code storage
     const storageDir = context.globalStorageUri.fsPath;
-    
+
     // Ensure storage directory exists
     if (!fs.existsSync(storageDir)) {
         fs.mkdirSync(storageDir, { recursive: true });
     }
 
     const jarPath = path.join(storageDir, 'choral', 'dist', 'choral-standalone.jar');
-    
+
     if (fs.existsSync(jarPath)) {
         console.log('✓ Choral JAR already exists at:', jarPath);
         return jarPath;
@@ -43,7 +43,7 @@ export async function findOrInstallChoral(context: vscode.ExtensionContext): Pro
 
     // 3) Download the latest release
     console.log('Downloading Choral from:', CHORAL_ZIP_URL);
-    
+
     // Show progress notification
     await vscode.window.withProgress({
         location: vscode.ProgressLocation.Notification,
@@ -51,31 +51,31 @@ export async function findOrInstallChoral(context: vscode.ExtensionContext): Pro
         cancellable: false
     }, async (progress) => {
         progress.report({ message: "Downloading..." });
-        
+
         const zipPath = path.join(storageDir, 'choral.zip');
-        
+
         try {
             // Download the ZIP file
             await downloadFile(CHORAL_ZIP_URL, zipPath);
             console.log('✓ Downloaded ZIP to:', zipPath);
-            
+
             progress.report({ message: "Extracting..." });
-            
+
             // Extract the ZIP file
             const zip = new AdmZip(zipPath);
             zip.extractAllTo(storageDir, true);
             console.log('✓ Extracted ZIP to:', storageDir);
-            
+
             // Clean up ZIP file
             fs.unlinkSync(zipPath);
-            
+
             if (!fs.existsSync(jarPath)) {
                 throw new Error(`JAR file not found at expected location: ${jarPath}`);
             }
-            
+
             console.log('✓ Choral JAR ready at:', jarPath);
             return jarPath;
-            
+
         } catch (error) {
             // Clean up on error
             if (fs.existsSync(zipPath)) {
@@ -84,7 +84,7 @@ export async function findOrInstallChoral(context: vscode.ExtensionContext): Pro
             throw error;
         }
     });
-    
+
     return jarPath;
 }
 
@@ -103,20 +103,20 @@ function downloadFile(url: string, destPath: string): Promise<void> {
                 }
                 return;
             }
-            
+
             if (response.statusCode !== 200) {
                 reject(new Error(`Failed to download: HTTP status code ${response.statusCode}`));
                 return;
             }
-            
+
             const file = createWriteStream(destPath);
             response.pipe(file);
-            
+
             file.on('finish', () => {
                 file.close();
                 resolve();
             });
-            
+
             file.on('error', (err) => {
                 file.close();
                 fs.unlinkSync(destPath);
