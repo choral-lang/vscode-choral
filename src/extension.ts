@@ -18,7 +18,7 @@ let client: LanguageClient;
 export async function activate(context: vscode.ExtensionContext) {
 
 	console.log('Activating the Choral VS Code extension...');
-	
+
 	// Refer to: https://github.com/tempo-lang/vscode-tempo/blob/main/src/extension.ts
 	try {
 		// Download and ensure the Choral JAR is available
@@ -26,16 +26,9 @@ export async function activate(context: vscode.ExtensionContext) {
 		console.log('Using JAR at:', serverJarPath);
 
 		const serverOptions: ServerOptions = {
-			run: {
-				command: 'java',
-				args: ['-jar', serverJarPath, 'lsp'], // this would be a command as those specified in `choral -h`
-			} as Executable,
-			debug: {
-				command: 'java',
-				args: ['-jar', serverJarPath, 'lsp', '--lsp-debug']
-				// This currently doesn't do anything
-			} as Executable
-		};
+			command: 'java',
+			args: ['-jar', serverJarPath, 'lsp'],
+		} as Executable
 
 		const clientOptions: LanguageClientOptions = {
 			documentSelector: [{ scheme: 'file', language: 'choral' }],
