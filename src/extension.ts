@@ -21,7 +21,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	// Refer to: https://github.com/tempo-lang/vscode-tempo/blob/main/src/extension.ts
 	try {
-		// Download and ensure the Choral JAR is available
+		// Ensure the Choral JAR is available, downloading if necessary
 		const serverJarPath: string = await findOrInstallChoral(context);
 		console.log('Using JAR at:', serverJarPath);
 
@@ -52,7 +52,7 @@ export async function activate(context: vscode.ExtensionContext) {
 		client.start().then(
 			() => {
 				console.log('✓ LSP client started successfully');
-				vscode.window.showInformationMessage('Choral LSP started');
+				vscode.window.showInformationMessage('Choral LSP started!');
 			},
 			(error) => {
 				console.error('✗ LSP client failed to start:', error);

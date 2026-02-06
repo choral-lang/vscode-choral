@@ -4,14 +4,21 @@ Support for the [Choral programming language](https://choral-lang.org) inside of
 
 ## Features
 
-- Syntax highlighting.
-
-- Run task.
+- Syntax highlighting
 
 - Error highlighting 
 
-## Instalation
+- Automatically installs Choral unless `$CHORAL_HOME` is set
 
-Simply installing this extension will ensure that a choral installation will be found or downloaded if missing from system. 
+## Development
 
-If you wish to manually decide which choral installation is used, set `CHORAL_HOME`.
+To make changes to the extension, we recommend you use VS Code.
+To set up your development environment, run `npm install`. To compile the extension,
+use `npm run watch`. 
+
+To debug the extension, press `F5` in VS Code or pick `Run > Start Debugging` 
+from the VS Code menu. When you do that, VS Code looks for `.vscode/launch.json`
+and runs it. A new window will pop up, but the extension won't load until you
+open a `.ch` file.
+
+When debugging, logs will be written to the VS Code Debug Console.
