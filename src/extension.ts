@@ -40,7 +40,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			traceOutputChannel: vscode.window.createOutputChannel('Choral LSP Trace'),
 		};
 		client = new LanguageClient(
-			'choralLanguageServer',
+			'choral', // Make sure this matches package.json! Settings like `choral.languageServer.trace` depend on it.
 			'Choral Language Server',
 			serverOptions,
 			clientOptions
