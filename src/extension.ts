@@ -8,6 +8,7 @@ import {
 	LanguageClient,
 	LanguageClientOptions,
 	ServerOptions,
+	Trace,
 } from 'vscode-languageclient/node';
 import { findOrInstallChoral } from './installer';
 
@@ -21,38 +22,35 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	// Refer to: https://github.com/tempo-lang/vscode-tempo/blob/main/src/extension.ts
 	try {
-		// Download and ensure the Choral JAR is available
+		// Ensure the Choral JAR is available, downloading if necessary
 		const serverJarPath: string = await findOrInstallChoral(context);
 		console.log('Using JAR at:', serverJarPath);
 
 		const serverOptions: ServerOptions = {
 			command: 'java',
 			args: ['-jar', serverJarPath, 'lsp'],
-		} as Executable
+		};
 
 		const clientOptions: LanguageClientOptions = {
 			documentSelector: [{ scheme: 'file', language: 'choral' }],
 			synchronize: {
-				fileEvents: workspace.createFileSystemWatcher('**/*.ch')
+				fileEvents: workspace.createFileSystemWatcher('**/*.{ch,chh}')
 			},
 			outputChannel: vscode.window.createOutputChannel('Choral Language Server'),
+			traceOutputChannel: vscode.window.createOutputChannel('Choral LSP Trace'),
 		};
 		client = new LanguageClient(
-			'choralLanguageServer',
+			'choral', // Make sure this matches package.json! Settings like `choral.languageServer.trace` depend on it.
 			'Choral Language Server',
 			serverOptions,
 			clientOptions
-		)
-
-		client.onDidChangeState((event) => {
-			console.log('LSP Client state changed:', event);
-		});
+		);
 
 		console.log('Starting LSP client...');
 		client.start().then(
 			() => {
 				console.log('✓ LSP client started successfully');
-				vscode.window.showInformationMessage('Choral LSP started');
+				vscode.window.showInformationMessage('Choral LSP started!');
 			},
 			(error) => {
 				console.error('✗ LSP client failed to start:', error);
@@ -60,7 +58,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			}
 		);
 	} catch (error) {
-		console.error('ERROR in activate():', error);
+		console.error('ERROR activating Choral extension:', error);
 		vscode.window.showErrorMessage('Choral extension error: ' + error);
 	}
 
