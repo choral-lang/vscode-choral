@@ -69,10 +69,28 @@ export async function activate(context: vscode.ExtensionContext) {
 					}
 
 					try {
-						await client.sendRequest('workspace/executeCommand', {
+						// Send current buffer content to server
+						const result = await client.sendRequest('workspace/executeCommand', {
 							command: 'choral.insertComms',
-							arguments: [editor.document.uri.toString()]
+							arguments: [
+								editor.document.getText()
+							]
 						});
+
+						// Replace the entire document with the modified content
+						if (result && typeof result === 'string') {
+							const edit = new vscode.WorkspaceEdit();
+							const fullRange = new vscode.Range(
+								editor.document.positionAt(0),
+								editor.document.positionAt(editor.document.getText().length)
+							);
+							edit.replace(editor.document.uri, fullRange, result);
+							await vscode.workspace.applyEdit(edit);
+						}
+						else {
+							console.error('Unexpected response from choral.insertComms. ' +
+								'Expected string, got: ', result);
+						}
 					} catch (error) {
 						console.error('Error executing choral.insertComms:', error);
 						vscode.window.showErrorMessage('Failed to insert missing communications: ' + error);
