@@ -63,6 +63,13 @@
                 "path": "./syntaxes/choral.tmLanguage.json"
             }
         ],
+        "commands": [
+            {
+                "command": "choral.insertComms",
+                "title": "Insert Missing Communications",
+                "category": "Choral"
+            }
+        ],
         "configuration": {
             "title": "Choral",
             "properties": {

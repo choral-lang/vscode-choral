@@ -57,6 +57,30 @@ export async function activate(context: vscode.ExtensionContext) {
 				vscode.window.showErrorMessage('Choral LSP failed to start: ' + error);
 			}
 		);
+
+		context.subscriptions.push( 
+			vscode.commands.registerCommand(
+				'choral.insertComms', // This should match the command in package.json
+				async () => {
+					const editor = vscode.window.activeTextEditor;
+					if (!editor || editor.document.languageId !== 'choral') {
+						vscode.window.showErrorMessage("Choral LSP client can't find the Choral file!");
+						return;
+					}
+
+					try {
+						await client.sendRequest('workspace/executeCommand', {
+							command: 'choral.insertComms',
+							arguments: [editor.document.uri.toString()]
+						});
+					} catch (error) {
+						console.error('Error executing choral.insertComms:', error);
+						vscode.window.showErrorMessage('Failed to insert missing communications: ' + error);
+					}
+				}
+			)
+		);
+
 	} catch (error) {
 		console.error('ERROR activating Choral extension:', error);
 		vscode.window.showErrorMessage('Choral extension error: ' + error);
