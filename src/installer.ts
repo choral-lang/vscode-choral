@@ -5,7 +5,7 @@ import * as vscode from 'vscode';
 import { createWriteStream, createReadStream } from 'fs';
 import AdmZip from 'adm-zip';
 
-const CHORAL_VERSION = '0.1.11';
+const CHORAL_VERSION = '0.1.12';
 const CHORAL_ZIP_URL = `https://github.com/choral-lang/choral/releases/download/v${CHORAL_VERSION}/choral-${CHORAL_VERSION}.zip`;
 
 /**
