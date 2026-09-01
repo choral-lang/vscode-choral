@@ -68,6 +68,11 @@
                 "command": "choral.insertComms",
                 "title": "Insert Missing Communications",
                 "category": "Choral"
+            },
+            {
+                "command": "choral.showChoreography",
+                "title": "Show Visualization",
+                "category": "Choral"
             }
         ],
         "configuration": {
@@ -102,6 +107,15 @@
                     }
                 ]
             }
+        },
+        "menus": {
+            "editor/title": [
+                {
+                    "command": "choral.showChoreography",
+                    "when": "resourceLangId == choral",
+                    "group": "navigation"
+                }
+            ]
         }
     },
     "scripts": {
@@ -115,6 +129,7 @@
     },
     "dependencies": {
         "adm-zip": "^0.5.10",
+        "mermaid": "^11.12.2",
         "vscode-languageclient": "^9.0.1"
     },
     "devDependencies": {

@@ -10,6 +10,7 @@ import {
 	ServerOptions,
 	Trace,
 } from 'vscode-languageclient/node';
+import { registerChoreographyVisualization } from './choreography';
 import { findOrInstallChoral } from './installer';
 
 let client: LanguageClient;
@@ -58,7 +59,9 @@ export async function activate(context: vscode.ExtensionContext) {
 			}
 		);
 
-		context.subscriptions.push( 
+		registerChoreographyVisualization(context, client);
+
+		context.subscriptions.push(
 			vscode.commands.registerCommand(
 				'choral.insertComms', // This should match the command in package.json
 				async () => {
