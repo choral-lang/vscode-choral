@@ -110,8 +110,7 @@
         "watch": "tsc -watch -p ./",
         "lint": "eslint src",
         "test": "npm run compile && vscode-test",
-        "package": "vsce package",
-        "publish": "vsce publish"
+        "deploy": "vsce publish"
     },
     "dependencies": {
         "adm-zip": "^0.5.10",

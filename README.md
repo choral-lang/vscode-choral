@@ -38,3 +38,9 @@ window "the debugger window". There are three places to look for logs:
    is controlled in the host window by adjusting the VS Code setting
    `choral.trace.server`. You might need to restart your IDE for these
    settings to take effect.
+
+## Releasing
+
+1. Bump the `version` number in `package.json`.
+2. Create a [new GitHub release](https://github.com/choral-lang/vscode-choral/releases/new). The tag needs to be in `v#.#.#` format (note the leading `v`) e.g. `v1.1.13`.
+3. Publishing the release triggers a [GitHub workflow](https://github.com/choral-lang/choral-vscode/actions/workflows/publish.yml) that validates the tag and pushes to the VS Code Marketplace.
