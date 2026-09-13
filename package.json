@@ -128,5 +128,9 @@
         "@vscode/vsce": "^3.9.2",
         "eslint": "^9.34.0",
         "typescript": "^5.9.2"
+    },
+    "overrides": {
+        "diff": "8.0.4",
+        "serialize-javascript": "7.1.1"
     }
 }
