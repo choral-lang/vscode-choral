@@ -5,7 +5,7 @@ import * as vscode from 'vscode';
 import { createWriteStream, createReadStream } from 'fs';
 import AdmZip from 'adm-zip';
 
-const CHORAL_VERSION = '0.1.12';
+const CHORAL_VERSION = '0.1.13';
 const CHORAL_ZIP_URL = `https://github.com/choral-lang/choral/releases/download/v${CHORAL_VERSION}/choral-${CHORAL_VERSION}.zip`;
 
 /**
@@ -23,7 +23,7 @@ export async function findOrInstallChoral(context: vscode.ExtensionContext): Pro
             vscode.window.showInformationMessage(`Using LSP server defined in $CHORAL_HOME: ${choralHome}`);
             return candidate;
         }
-        console.warn('✗ CHORAL_HOME is defined but JAR not found at:', candidate);
+        vscode.window.showErrorMessage(`$CHORAL_HOME is defined, but no JAR found at ${candidate}`);
     }
 
     // 2) Check if the JAR is already in VS Code storage
