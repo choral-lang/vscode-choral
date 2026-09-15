@@ -36,8 +36,8 @@ export async function activate(context: vscode.ExtensionContext) {
 			synchronize: {
 				fileEvents: workspace.createFileSystemWatcher('**/*.{ch,chh}')
 			},
-			outputChannel: vscode.window.createOutputChannel('Choral Language Server'),
-			traceOutputChannel: vscode.window.createOutputChannel('Choral LSP Trace'),
+			outputChannel: vscode.window.createOutputChannel('Choral Language Server', { log: true }),
+			traceOutputChannel: vscode.window.createOutputChannel('Choral LSP Trace', { log: true }),
 		};
 		client = new LanguageClient(
 			'choral', // Make sure this matches package.json! Settings like `choral.languageServer.trace` depend on it.

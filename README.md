@@ -32,12 +32,13 @@ window "the debugger window". There are three places to look for logs:
    and then selecting `Choral Language Server` from the dropdown menu.
    This is where stdout from the LSP server will appear.
 
-3. The *trace channel* in the host window. Open it with `View > Output`
-   and then selecting `Choral LSP Trace`. This window logs JSON messages
-   between the LSP client and LSP server. The verbosity of these logs
+3. The *trace channel* in the host window. This window logs JSON messages
+   between the LSP client and LSP server. To enable it, run 
+   `Developer: Set Log Level...` from the Command Palette, select 
+   `Choral LSP Trace`, and select `Trace`. Open it with `View > Output`
+   and then selecting `Choral LSP Trace`. The verbosity of these logs
    is controlled in the host window by adjusting the VS Code setting
-   `choral.trace.server`. You might need to restart your IDE for these
-   settings to take effect.
+   `choral.trace.server`.
 
 ## Releasing
 
