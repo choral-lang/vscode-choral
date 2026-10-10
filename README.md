@@ -52,6 +52,11 @@ run these commands under `xvfb-run -a`.
 End-to-end tests require Java on `PATH` and `CHORAL_HOME` pointing to a directory
 containing `choral-standalone.jar`.
 
+`npm run test:e2e:install` tests a fresh installation instead. It clears
+`CHORAL_HOME` in the test host and uses a new profile under `.vscode-test/install`,
+which is removed when the runner exits, whether the tests pass or fail.
+It requires Java and network access to GitHub to download Choral.
+
 ## Releasing
 
 1. Bump the `version` number in `package.json`.
