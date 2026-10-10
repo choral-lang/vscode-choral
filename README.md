@@ -40,6 +40,21 @@ window "the debugger window". There are three places to look for logs:
    is controlled in the host window by adjusting the VS Code setting
    `choral.trace.server`.
 
+### Tests
+
+Test sources live under `src/test` and compile into `out/test`:
+
+- `unit/`: isolated logic, run in Node.js with mocked external dependencies.
+- `integration/`: extension behavior inside VS Code with controlled server responses.
+- `e2e/`: VS Code with the real Java language server.
+
+Shared sample files belong in `test/fixtures`.
+
+Run `npm run test:unit`, `npm run test:integration`, or `npm run test:e2e`
+to select a group. `npm test` runs unit and integration tests; end-to-end tests
+are opt-in. The VS Code runner may download VS Code on its first run.
+Once implemented, end-to-end tests will also require Java and a Choral server.
+
 ## Releasing
 
 1. Bump the `version` number in `package.json`.
