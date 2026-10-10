@@ -42,18 +42,15 @@ window "the debugger window". There are three places to look for logs:
 
 ### Tests
 
-Test sources live under `src/test` and compile into `out/test`:
-
-- `unit/`: isolated logic, run in Node.js with mocked external dependencies.
-- `integration/`: extension behavior inside VS Code with controlled server responses.
-- `e2e/`: VS Code with the real Java language server.
-
-Shared sample files belong in `test/fixtures`.
-
 Run `npm run test:unit`, `npm run test:integration`, or `npm run test:e2e`
 to select a group. `npm test` runs unit and integration tests; end-to-end tests
-are opt-in. The VS Code runner may download VS Code on its first run.
-Once implemented, end-to-end tests will also require Java and a Choral server.
+are opt-in. All commands compile the tests before running them.
+
+Run `npm install` to install the test dependencies. Integration and end-to-end
+tests launch VS Code; the runner downloads it when needed. On headless Linux,
+run these commands under `xvfb-run -a`.
+End-to-end tests require Java on `PATH` and `CHORAL_HOME` pointing to a directory
+containing `choral-standalone.jar`.
 
 ## Releasing
 
