@@ -22,7 +22,7 @@
 			"command": "node",
 			"args": [
 				"-e",
-				"require('fs').rmSync(process.argv[1], { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });",
+				"require(\"fs\").rmSync(process.argv[1], { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });",
 				"${userHome}/.choral-installer-debug"
 			],
 			"osx": {
