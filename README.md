@@ -42,20 +42,13 @@ window "the debugger window". There are three places to look for logs:
 
 ### Tests
 
-Run `npm run test:unit`, `npm run test:integration`, or `npm run test:e2e`
-to select a group. `npm test` runs unit and integration tests; end-to-end tests
-are opt-in. All commands compile the tests before running them.
+- `npm test` runs unit and integration tests
+- `npm run test:unit` runs unit tests
+- `npm run test:integration` runs integration tests
+- `npm run test:e2e` runs end-to-end tests, assuming `CHORAL_HOME` is set
+- `npm run test:e2e:install` runs end-to-end tests, downloading Choral automatically
 
-Run `npm install` to install the test dependencies. Integration and end-to-end
-tests launch VS Code; the runner downloads it when needed. On headless Linux,
-run these commands under `xvfb-run -a`.
-End-to-end tests require Java on `PATH` and `CHORAL_HOME` pointing to a directory
-containing `choral-standalone.jar`.
-
-`npm run test:e2e:install` tests a fresh installation instead. It clears
-`CHORAL_HOME` in the test host and uses a new profile under `.vscode-test/install`,
-which is removed when the runner exits, whether the tests pass or fail.
-It requires Java and network access to GitHub to download Choral.
+Integration tests and end-to-end tests launch VS Code. End-to-end tests require Java on `PATH`.
 
 ## Releasing
 
