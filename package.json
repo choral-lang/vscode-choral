@@ -2,7 +2,7 @@
     "name": "vscode-choral",
     "displayName": "Choral Language Extension",
     "description": "Support for the Choral programming language.",
-    "version": "1.0.4",
+    "version": "1.0.5",
     "license": "MIT",
     "icon": "./images/icon.png",
     "publisher": "choral",
