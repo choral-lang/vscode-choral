@@ -16,19 +16,40 @@ describe('Choral installer', () => {
 	let storageDir: string;
 	let context: vscode.ExtensionContext;
 	let choralHome: string | undefined;
+	let cancellation: vscode.CancellationTokenSource;
+	let requests: ClientRequest[];
+	let errorMessages: string[];
 	const originalGet = https.get;
 	const originalRmSync = fs.rmSync;
+	const originalWithProgress = vscode.window.withProgress;
+	const originalShowErrorMessage = vscode.window.showErrorMessage;
+	const originalSetTimeout = global.setTimeout;
 
 	beforeEach(() => {
 		storageDir = fs.mkdtempSync(path.join(os.tmpdir(), 'choral-installer-'));
 		context = { globalStorageUri: vscode.Uri.file(storageDir) } as vscode.ExtensionContext;
 		choralHome = process.env.CHORAL_HOME;
 		delete process.env.CHORAL_HOME;
+		cancellation = new vscode.CancellationTokenSource();
+		requests = [];
+		errorMessages = [];
+		vscode.window.withProgress = (options, task) => {
+			assert.strictEqual(options.cancellable, true);
+			return Promise.resolve(task({ report: () => {} }, cancellation.token));
+		};
+		vscode.window.showErrorMessage = (async (message: string) => {
+			errorMessages.push(message);
+			return undefined;
+		}) as typeof vscode.window.showErrorMessage;
 	});
 
 	afterEach(() => {
 		https.get = originalGet;
 		fs.rmSync = originalRmSync;
+		vscode.window.withProgress = originalWithProgress;
+		vscode.window.showErrorMessage = originalShowErrorMessage;
+		global.setTimeout = originalSetTimeout;
+		cancellation.dispose();
 		if (choralHome === undefined) {
 			delete process.env.CHORAL_HOME;
 		} else {
@@ -36,6 +57,40 @@ describe('Choral installer', () => {
 		}
 		fs.rmSync(storageDir, { recursive: true, force: true });
 	});
+
+	function mockRequest(): ClientRequest {
+		const request = new EventEmitter() as ClientRequest;
+		request.destroyed = false;
+		request.destroy = (error?: Error) => {
+			if (!request.destroyed) {
+				request.destroyed = true;
+				process.nextTick(() => {
+					if (error) {
+						request.emit('error', error);
+					}
+					request.emit('close');
+				});
+			}
+			return request;
+		};
+		requests.push(request);
+		return request;
+	}
+
+	function captureDeadline(): () => void {
+		let expire: (() => void) | undefined;
+		global.setTimeout = ((callback: (...args: unknown[]) => void, delay?: number, ...args: unknown[]) => {
+			if (delay === 120_000) {
+				assert.strictEqual(expire, undefined, 'Redirects must not reset the deadline.');
+				expire = () => callback(...args);
+			}
+			return originalSetTimeout(callback, delay, ...args);
+		}) as typeof setTimeout;
+		return () => {
+			assert.ok(expire, 'The download must have an overall deadline.');
+			expire();
+		};
+	}
 
 	function assertNoStagingDirectories(): void {
 		assert.ok(!fs.readdirSync(storageDir).some(name => name.startsWith('.choral-install-')));
@@ -51,13 +106,13 @@ describe('Choral installer', () => {
 		const response = new PassThrough();
 		Object.assign(response, { statusCode: 200, headers: {} });
 		https.get = ((_url: unknown, callback: (response: IncomingMessage) => void) => {
-			const request = new EventEmitter();
+			const request = mockRequest();
 			process.nextTick(() => {
 				prepare?.();
 				callback(response as unknown as IncomingMessage);
 				send(response);
 			});
-			return request as ClientRequest;
+			return request;
 		}) as typeof https.get;
 		return response;
 	}
@@ -105,9 +160,9 @@ describe('Choral installer', () => {
 	it('preserves a request error when there is no ZIP to clean up', async () => {
 		const failure = new Error('Connection refused');
 		https.get = (() => {
-			const request = new EventEmitter();
+			const request = mockRequest();
 			process.nextTick(() => request.emit('error', failure));
-			return request as ClientRequest;
+			return request;
 		}) as typeof https.get;
 
 		await assert.rejects(findOrInstallChoral(context), error => error === failure);
@@ -190,7 +245,7 @@ describe('Choral installer', () => {
 					downloadsReady();
 				}
 			});
-			return new EventEmitter() as ClientRequest;
+			return mockRequest();
 		}) as typeof https.get;
 
 		const first = findOrInstallChoral(context);
@@ -235,6 +290,120 @@ describe('Choral installer', () => {
 
 		const jarPath = await installing;
 		assert.strictEqual(fs.readFileSync(jarPath, 'utf8'), 'other process');
+		assertNoStagingDirectories();
+	});
+
+	it('cancels before starting a download without offering retry', async () => {
+		cancellation.cancel();
+
+		await assert.rejects(findOrInstallChoral(context), vscode.CancellationError);
+
+		assert.strictEqual(requests.length, 0);
+		assert.deepStrictEqual(errorMessages, []);
+		assertNoStagingDirectories();
+	});
+
+	it('destroys a request cancelled before response headers arrive', async () => {
+		https.get = (() => {
+			const request = mockRequest();
+			setImmediate(() => cancellation.cancel());
+			return request;
+		}) as typeof https.get;
+
+		await assert.rejects(findOrInstallChoral(context), vscode.CancellationError);
+
+		assert.ok(requests[0].destroyed);
+		assert.deepStrictEqual(errorMessages, []);
+		assertNoStagingDirectories();
+	});
+
+	it('cancels a partial transfer and closes the streams before cleanup', async () => {
+		const response = mockResponse(stream => {
+			stream.write('partial ZIP');
+			setImmediate(() => cancellation.cancel());
+		});
+		let responseClosed = false;
+		response.on('close', () => { responseClosed = true; });
+
+		await assert.rejects(findOrInstallChoral(context), vscode.CancellationError);
+
+		assert.ok(requests[0].destroyed);
+		assert.ok(responseClosed);
+		assert.deepStrictEqual(errorMessages, []);
+		assertNoStagingDirectories();
+		assert.ok(!fs.existsSync(path.join(storageDir, 'choral-server')));
+	});
+
+	it('times out before headers arrive and preserves the timeout explanation', async () => {
+		const expire = captureDeadline();
+		https.get = (() => {
+			const request = mockRequest();
+			setImmediate(expire);
+			return request;
+		}) as typeof https.get;
+
+		await assert.rejects(findOrInstallChoral(context), /Download timed out after 2 minutes/);
+
+		assert.ok(requests[0].destroyed);
+		assert.strictEqual(errorMessages.length, 1);
+		assert.match(errorMessages[0], /Download timed out after 2 minutes/);
+		assertNoStagingDirectories();
+	});
+
+	it('times out a stalled partial transfer and removes its staging directory', async () => {
+		const expire = captureDeadline();
+		const response = mockResponse(stream => {
+			stream.write('partial ZIP');
+			setImmediate(expire);
+		});
+
+		await assert.rejects(findOrInstallChoral(context), /Download timed out/);
+
+		assert.ok(requests[0].destroyed);
+		assert.ok(response.destroyed);
+		assertNoStagingDirectories();
+	});
+
+	it('shares the deadline across redirects and aborts the redirected request', async () => {
+		const expire = captureDeadline();
+		const redirect = new PassThrough();
+		Object.assign(redirect, { statusCode: 302, headers: { location: '/redirected.zip' } });
+		https.get = ((_url: unknown, callback: (response: IncomingMessage) => void) => {
+			const request = mockRequest();
+			if (requests.length === 1) {
+				process.nextTick(() => callback(redirect as unknown as IncomingMessage));
+			} else {
+				setImmediate(expire);
+			}
+			return request;
+		}) as typeof https.get;
+
+		await assert.rejects(findOrInstallChoral(context), /Download timed out/);
+
+		assert.strictEqual(requests.length, 2);
+		assert.ok(requests.every(request => request.destroyed));
+		assert.ok(redirect.destroyed);
+		assertNoStagingDirectories();
+	});
+
+	it('retries from a clean staging directory when the user chooses Retry', async () => {
+		const failure = new Error('Connection interrupted');
+		mockResponse(stream => setImmediate(() => stream.destroy(failure)));
+		let prompts = 0;
+		vscode.window.showErrorMessage = (async (message: string, action: string) => {
+			prompts++;
+			assert.strictEqual(prompts, 1);
+			assert.match(message, /Connection interrupted/);
+			assert.strictEqual(action, 'Retry');
+			assertNoStagingDirectories();
+			mockResponse(response => response.end(archive('retried JAR')));
+			return 'Retry';
+		}) as typeof vscode.window.showErrorMessage;
+
+		const jarPath = await findOrInstallChoral(context);
+
+		assert.strictEqual(fs.readFileSync(jarPath, 'utf8'), 'retried JAR');
+		assert.strictEqual(prompts, 1);
 		assertNoStagingDirectories();
 	});
 });

@@ -8,6 +8,7 @@ import AdmZip from 'adm-zip';
 
 const CHORAL_VERSION = '0.1.13';
 const CHORAL_ZIP_URL = `https://github.com/choral-lang/choral/releases/download/v${CHORAL_VERSION}/choral-${CHORAL_VERSION}.zip`;
+const DOWNLOAD_TIMEOUT_MS = 120_000;
 
 /**
  * Finds the Choral JAR, downloading it if necessary.
@@ -15,6 +16,25 @@ const CHORAL_ZIP_URL = `https://github.com/choral-lang/choral/releases/download/
  * @returns The path to the choral-standalone.jar file
  */
 export async function findOrInstallChoral(context: vscode.ExtensionContext): Promise<string> {
+    while (true) {
+        try {
+            return await findOrInstallChoralOnce(context);
+        } catch (error) {
+            if (error instanceof vscode.CancellationError) {
+                throw error;
+            }
+            const message = error instanceof Error ? error.message : String(error);
+            const action = await vscode.window.showErrorMessage(
+                `Could not install Choral Language Server: ${message}`, 'Retry'
+            );
+            if (action !== 'Retry') {
+                throw error;
+            }
+        }
+    }
+}
+
+async function findOrInstallChoralOnce(context: vscode.ExtensionContext): Promise<string> {
     // 1) Check if CHORAL_HOME is defined
     const choralHome = process.env.CHORAL_HOME;
     if (choralHome) {
@@ -47,8 +67,9 @@ export async function findOrInstallChoral(context: vscode.ExtensionContext): Pro
     await vscode.window.withProgress({
         location: vscode.ProgressLocation.Notification,
         title: "Downloading Choral Language Server",
-        cancellable: false
-    }, async (progress) => {
+        cancellable: true
+    }, async (progress, token) => {
+        throwIfCancelled(token);
         progress.report({ message: "Downloading..." });
 
         // Keep staging on the same filesystem as the final directory for rename.
@@ -59,9 +80,10 @@ export async function findOrInstallChoral(context: vscode.ExtensionContext): Pro
 
         try {
             // Download the ZIP file
-            await downloadFile(CHORAL_ZIP_URL, zipPath);
+            await downloadWithDeadline(CHORAL_ZIP_URL, zipPath, token);
             console.log('✓ Downloaded ZIP to:', zipPath);
 
+            throwIfCancelled(token);
             progress.report({ message: "Extracting..." });
 
             // Extract the ZIP file
@@ -73,6 +95,7 @@ export async function findOrInstallChoral(context: vscode.ExtensionContext): Pro
                 throw new Error(`Non-empty JAR file not found at expected location: ${stagedJarPath}`);
             }
 
+            throwIfCancelled(token);
             try {
                 fs.renameSync(stagedInstallDir, installDir);
             } catch (error) {
@@ -101,6 +124,34 @@ export async function findOrInstallChoral(context: vscode.ExtensionContext): Pro
     return jarPath;
 }
 
+function throwIfCancelled(token: vscode.CancellationToken): void {
+    if (token.isCancellationRequested) {
+        throw new vscode.CancellationError();
+    }
+}
+
+async function downloadWithDeadline(
+    url: string, destPath: string, token: vscode.CancellationToken
+): Promise<void> {
+    const controller = new AbortController();
+    const subscription = token.onCancellationRequested(() => {
+        controller.abort(new vscode.CancellationError());
+    });
+    if (token.isCancellationRequested) {
+        controller.abort(new vscode.CancellationError());
+    }
+    // One budget covers connection setup, all redirects, and the entire transfer.
+    const timer = setTimeout(() => {
+        controller.abort(new Error('Download timed out after 2 minutes. Check your connection and retry.'));
+    }, DOWNLOAD_TIMEOUT_MS);
+    try {
+        await downloadFile(url, destPath, controller.signal);
+    } finally {
+        clearTimeout(timer);
+        subscription.dispose();
+    }
+}
+
 function isInstalledJar(jarPath: string): boolean {
     try {
         const stat = fs.lstatSync(jarPath);
@@ -116,32 +167,61 @@ function isInstalledJar(jarPath: string): boolean {
 /**
  * Downloads a file from a URL to a destination path
  */
-function downloadFile(url: string, destPath: string): Promise<void> {
-    return new Promise((resolve, reject) => {
-        https.get(url, async (response) => {
-            // Follow redirects
-            if (response.statusCode === 302 || response.statusCode === 301) {
-                if (response.headers.location) {
-                    downloadFile(response.headers.location, destPath).then(resolve).catch(reject);
-                } else {
-                    reject(new Error('Failed to download: Redirect without location header'));
+async function downloadFile(url: string, destPath: string, signal: AbortSignal): Promise<void> {
+    signal.throwIfAborted();
+    let request: ReturnType<typeof https.get> | undefined;
+    const abort = () => { request?.destroy(signal.reason); };
+    signal.addEventListener('abort', abort, { once: true });
+    try {
+        await new Promise<void>((resolve, reject) => {
+            let receivedResponse = false;
+            request = https.get(url, async (response) => {
+                receivedResponse = true;
+                if (signal.aborted) {
+                    response.destroy();
+                    reject(signal.reason);
+                    return;
                 }
-                return;
-            }
+                try {
+                    // Follow redirects using the same deadline and cancellation signal.
+                    if (response.statusCode === 302 || response.statusCode === 301) {
+                        response.destroy();
+                        if (!response.headers.location) {
+                            throw new Error('Failed to download: Redirect without location header');
+                        }
+                        const redirectUrl = new URL(response.headers.location, url).href;
+                        await downloadFile(redirectUrl, destPath, signal);
+                        resolve();
+                        return;
+                    }
 
-            if (response.statusCode !== 200) {
-                reject(new Error(`Failed to download: HTTP status code ${response.statusCode}`));
-                return;
-            }
+                    if (response.statusCode !== 200) {
+                        response.destroy();
+                        throw new Error(`Failed to download: HTTP status code ${response.statusCode}`);
+                    }
 
-            try {
-                await pipeline(response, createWriteStream(destPath));
-                resolve();
-            } catch (error) {
-                reject(error);
+                    await pipeline(response, createWriteStream(destPath), { signal });
+                    resolve();
+                } catch (error) {
+                    reject(error);
+                }
+            }).on('error', (error) => {
+                // After headers, wait for pipeline to close the streams before cleanup.
+                if (!receivedResponse) {
+                    reject(error);
+                }
+            });
+            if (signal.aborted) {
+                abort();
             }
-        }).on('error', (err) => {
-            reject(err);
         });
-    });
+    } catch (error) {
+        // Node's streams use AbortError; preserve our timeout/cancellation reason.
+        if (signal.aborted) {
+            throw signal.reason;
+        }
+        throw error;
+    } finally {
+        signal.removeEventListener('abort', abort);
+    }
 }
