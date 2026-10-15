@@ -19,26 +19,54 @@ describe('Choral installer', () => {
 	let cancellation: vscode.CancellationTokenSource;
 	let requests: ClientRequest[];
 	let errorMessages: string[];
+	let errorActions: string[][];
+	let infoMessages: string[];
+	let logMessages: string[];
+	let detailsShown: number;
 	const originalGet = https.get;
 	const originalRmSync = fs.rmSync;
 	const originalWithProgress = vscode.window.withProgress;
 	const originalShowErrorMessage = vscode.window.showErrorMessage;
+	const originalShowInformationMessage = vscode.window.showInformationMessage;
+	const originalCreateOutputChannel = vscode.window.createOutputChannel;
 	const originalSetTimeout = global.setTimeout;
 
 	beforeEach(() => {
 		storageDir = fs.mkdtempSync(path.join(os.tmpdir(), 'choral-installer-'));
-		context = { globalStorageUri: vscode.Uri.file(storageDir) } as vscode.ExtensionContext;
+		context = {
+			globalStorageUri: vscode.Uri.file(storageDir), subscriptions: []
+		} as unknown as vscode.ExtensionContext;
 		choralHome = process.env.CHORAL_HOME;
 		delete process.env.CHORAL_HOME;
 		cancellation = new vscode.CancellationTokenSource();
 		requests = [];
 		errorMessages = [];
+		errorActions = [];
+		infoMessages = [];
+		logMessages = [];
+		detailsShown = 0;
+		vscode.window.createOutputChannel = ((name: string) => {
+			assert.strictEqual(name, 'Choral Installer');
+			return {
+				info: (message: string) => logMessages.push(message),
+				warn: (message: string) => logMessages.push(message),
+				error: (message: string | Error) => logMessages.push(String(message)),
+				show: () => { detailsShown++; },
+				dispose: () => {}
+			} as unknown as vscode.LogOutputChannel;
+		}) as typeof vscode.window.createOutputChannel;
+		vscode.window.showInformationMessage = (async (message: string, action: string) => {
+			infoMessages.push(message);
+			assert.strictEqual(action, 'View details');
+			return undefined;
+		}) as typeof vscode.window.showInformationMessage;
 		vscode.window.withProgress = (options, task) => {
 			assert.strictEqual(options.cancellable, true);
 			return Promise.resolve(task({ report: () => {} }, cancellation.token));
 		};
-		vscode.window.showErrorMessage = (async (message: string) => {
+		vscode.window.showErrorMessage = (async (message: string, ...actions: string[]) => {
 			errorMessages.push(message);
+			errorActions.push(actions);
 			return undefined;
 		}) as typeof vscode.window.showErrorMessage;
 	});
@@ -48,6 +76,11 @@ describe('Choral installer', () => {
 		fs.rmSync = originalRmSync;
 		vscode.window.withProgress = originalWithProgress;
 		vscode.window.showErrorMessage = originalShowErrorMessage;
+		vscode.window.showInformationMessage = originalShowInformationMessage;
+		vscode.window.createOutputChannel = originalCreateOutputChannel;
+		for (const disposable of context.subscriptions) {
+			disposable.dispose();
+		}
 		global.setTimeout = originalSetTimeout;
 		cancellation.dispose();
 		if (choralHome === undefined) {
@@ -127,6 +160,8 @@ describe('Choral installer', () => {
 
 		assert.deepStrictEqual(fs.readFileSync(jarPath), contents);
 		assert.strictEqual(jarPath, path.join(storageDir, 'choral-server', 'dist', 'choral-standalone.jar'));
+		assert.deepStrictEqual(infoMessages, ['Installed Choral language server.']);
+		assert.ok(logMessages.some(message => message.includes(jarPath)));
 		assertNoStagingDirectories();
 	});
 
@@ -229,6 +264,7 @@ describe('Choral installer', () => {
 		}) as typeof https.get;
 
 		assert.strictEqual(await findOrInstallChoral(context), jarPath);
+		assert.strictEqual(infoMessages.at(-1), 'Using installed Choral language server.');
 	});
 
 	it('isolates concurrent downloads and reuses the first published installation', async () => {
@@ -290,6 +326,7 @@ describe('Choral installer', () => {
 
 		const jarPath = await installing;
 		assert.strictEqual(fs.readFileSync(jarPath, 'utf8'), 'other process');
+		assert.deepStrictEqual(infoMessages, ['Using Choral language server installed by another window.']);
 		assertNoStagingDirectories();
 	});
 
@@ -300,6 +337,7 @@ describe('Choral installer', () => {
 
 		assert.strictEqual(requests.length, 0);
 		assert.deepStrictEqual(errorMessages, []);
+		assert.deepStrictEqual(infoMessages, ['Choral language server installation cancelled.']);
 		assertNoStagingDirectories();
 	});
 
@@ -405,5 +443,92 @@ describe('Choral installer', () => {
 		assert.strictEqual(fs.readFileSync(jarPath, 'utf8'), 'retried JAR');
 		assert.strictEqual(prompts, 1);
 		assertNoStagingDirectories();
+	});
+
+	it('uses a valid CHORAL_HOME and reports its JAR in details', async () => {
+		const home = path.join(storageDir, 'override');
+		fs.mkdirSync(home);
+		const jarPath = path.join(home, 'choral-standalone.jar');
+		fs.writeFileSync(jarPath, 'override JAR');
+		process.env.CHORAL_HOME = home;
+
+		assert.strictEqual(await findOrInstallChoral(context), jarPath);
+
+		assert.strictEqual(requests.length, 0);
+		assert.deepStrictEqual(infoMessages, ['Using Choral language server from CHORAL_HOME.']);
+		assert.ok(logMessages.some(message => message.includes(jarPath)));
+		assert.ok(!infoMessages.some(message => message.includes(home)));
+		assert.ok(!fs.existsSync(path.join(storageDir, 'choral-server')));
+	});
+
+	it('rejects invalid CHORAL_HOME even when a managed server is available', async () => {
+		const managedDist = path.join(storageDir, 'choral-server', 'dist');
+		fs.mkdirSync(managedDist, { recursive: true });
+		fs.writeFileSync(path.join(managedDist, 'choral-standalone.jar'), 'managed JAR');
+
+		for (const fixture of ['missing', 'empty', 'directory', 'not-a-directory']) {
+			const home = path.join(storageDir, fixture);
+			if (fixture === 'not-a-directory') {
+				fs.writeFileSync(home, 'not a directory');
+			} else {
+				fs.mkdirSync(home);
+				if (fixture === 'empty') {
+					fs.writeFileSync(path.join(home, 'choral-standalone.jar'), '');
+				} else if (fixture === 'directory') {
+					fs.mkdirSync(path.join(home, 'choral-standalone.jar'));
+				}
+			}
+			process.env.CHORAL_HOME = home;
+
+			await assert.rejects(findOrInstallChoral(context), /CHORAL_HOME does not contain choral-standalone.jar/);
+			assert.ok(logMessages.some(message => message.includes(path.join(home, 'choral-standalone.jar'))));
+		}
+
+		assert.strictEqual(requests.length, 0);
+		assert.deepStrictEqual(infoMessages, []);
+		assert.strictEqual(errorMessages.length, 4);
+		assert.ok(errorActions.every(actions => actions.includes('Retry') && actions.includes('View details')));
+		assertNoStagingDirectories();
+	});
+
+	it('keeps Retry available after viewing an invalid override diagnostic', async () => {
+		const home = path.join(storageDir, 'override');
+		fs.mkdirSync(home);
+		process.env.CHORAL_HOME = home;
+		let prompts = 0;
+		vscode.window.showErrorMessage = (async (_message: string, ...actions: string[]) => {
+			assert.deepStrictEqual(actions, ['Retry', 'View details']);
+			prompts++;
+			if (prompts === 1) {
+				return 'View details';
+			}
+			assert.strictEqual(prompts, 2);
+			assert.strictEqual(detailsShown, 1);
+			fs.writeFileSync(path.join(home, 'choral-standalone.jar'), 'repaired JAR');
+			return 'Retry';
+		}) as typeof vscode.window.showErrorMessage;
+
+		const jarPath = await findOrInstallChoral(context);
+
+		assert.strictEqual(fs.readFileSync(jarPath, 'utf8'), 'repaired JAR');
+		assert.strictEqual(prompts, 2);
+		assert.strictEqual(requests.length, 0);
+		assert.deepStrictEqual(infoMessages, ['Using Choral language server from CHORAL_HOME.']);
+	});
+
+	it('opens the installer output when View details is selected on success', async () => {
+		mockResponse(response => response.end(archive()));
+		vscode.window.showInformationMessage = (async (_message: string, action: string) => {
+			assert.strictEqual(action, 'View details');
+			return 'View details';
+		}) as typeof vscode.window.showInformationMessage;
+
+		const jarPath = await findOrInstallChoral(context);
+		await Promise.resolve();
+
+		assert.strictEqual(detailsShown, 1);
+		assert.ok(logMessages.some(message => message.includes(jarPath)));
+		assert.ok(logMessages.some(message => message.includes('Download destination:')));
+		assert.ok(logMessages.some(message => message.includes('Expected extracted JAR:')));
 	});
 });

@@ -16,55 +16,82 @@ const DOWNLOAD_TIMEOUT_MS = 120_000;
  * @returns The path to the choral-standalone.jar file
  */
 export async function findOrInstallChoral(context: vscode.ExtensionContext): Promise<string> {
+    const output = vscode.window.createOutputChannel('Choral Installer', { log: true });
+    context.subscriptions.push(output);
     while (true) {
         try {
-            return await findOrInstallChoralOnce(context);
+            return await findOrInstallChoralOnce(context, output);
         } catch (error) {
             if (error instanceof vscode.CancellationError) {
+                reportOutcome('Choral language server installation cancelled.', output);
                 throw error;
             }
-            const message = error instanceof Error ? error.message : String(error);
-            const action = await vscode.window.showErrorMessage(
-                `Could not install Choral Language Server: ${message}`, 'Retry'
-            );
+            const failure = error instanceof Error ? error : new Error(String(error));
+            output.error(failure);
+            const message = failure.message;
+            let action: string | undefined;
+            do {
+                action = await vscode.window.showErrorMessage(
+                    `Could not prepare Choral language server: ${message}`, 'Retry', 'View details'
+                );
+                if (action === 'View details') {
+                    output.show(true);
+                }
+            } while (action === 'View details');
             if (action !== 'Retry') {
+                output.info('Choral language server setup stopped without retrying.');
                 throw error;
             }
+            output.info('Retrying Choral language server setup.');
         }
     }
 }
 
-async function findOrInstallChoralOnce(context: vscode.ExtensionContext): Promise<string> {
+function reportOutcome(message: string, output: vscode.LogOutputChannel): void {
+    output.info(message);
+    // Start the server without waiting for the user to dismiss this notification.
+    void vscode.window.showInformationMessage(message, 'View details').then(action => {
+        if (action === 'View details') {
+            output.show(true);
+        }
+    });
+}
+
+async function findOrInstallChoralOnce(
+    context: vscode.ExtensionContext, output: vscode.LogOutputChannel
+): Promise<string> {
     // 1) Check if CHORAL_HOME is defined
     const choralHome = process.env.CHORAL_HOME;
     if (choralHome) {
-        console.log('✓ CHORAL_HOME is defined:', choralHome);
         const candidate = path.join(choralHome, 'choral-standalone.jar');
-        if (fs.existsSync(candidate)) {
-            vscode.window.showInformationMessage(`Using LSP server defined in $CHORAL_HOME: ${choralHome}`);
-            return candidate;
+        output.info(`looking for choral-standalone.jar in CHORAL_HOME: ${candidate}`);
+        if (!isInstalledJar(candidate)) {
+            throw new Error('CHORAL_HOME does not contain choral-standalone.jar');
         }
-        vscode.window.showErrorMessage(`$CHORAL_HOME is defined, but no JAR found at ${candidate}`);
+        reportOutcome('Using Choral language server from CHORAL_HOME.', output);
+        return candidate;
     }
 
     // 2) Check if the JAR is already in VS Code storage
     const storageDir = context.globalStorageUri.fsPath;
+    output.info(`Managed storage directory: ${storageDir}`);
     fs.mkdirSync(storageDir, { recursive: true });
 
     // Only this directory is published atomically.
     const installDir = path.join(storageDir, 'choral-server');
     const jarPath = path.join(installDir, 'dist', 'choral-standalone.jar');
+    output.info(`Managed server JAR: ${jarPath}`);
 
     if (isInstalledJar(jarPath)) {
-        console.log('✓ Choral JAR already exists at:', jarPath);
+        reportOutcome('Using installed Choral language server.', output);
         return jarPath;
     }
 
     // 3) Download the latest release
-    console.log('Downloading Choral from:', CHORAL_ZIP_URL);
+    output.info(`Downloading Choral from: ${CHORAL_ZIP_URL}`);
 
     // Show progress notification
-    await vscode.window.withProgress({
+    const outcome = await vscode.window.withProgress({
         location: vscode.ProgressLocation.Notification,
         title: "Downloading Choral Language Server",
         cancellable: true
@@ -77,11 +104,14 @@ async function findOrInstallChoralOnce(context: vscode.ExtensionContext): Promis
         const zipPath = path.join(stagingDir, 'choral.zip');
         const stagedInstallDir = path.join(stagingDir, 'choral');
         const stagedJarPath = path.join(stagedInstallDir, 'dist', 'choral-standalone.jar');
+        output.info(`Staging directory: ${stagingDir}`);
+        output.info(`Download destination: ${zipPath}`);
+        output.info(`Expected extracted JAR: ${stagedJarPath}`);
 
         try {
             // Download the ZIP file
             await downloadWithDeadline(CHORAL_ZIP_URL, zipPath, token);
-            console.log('✓ Downloaded ZIP to:', zipPath);
+            output.info(`Downloaded ZIP to: ${zipPath}`);
 
             throwIfCancelled(token);
             progress.report({ message: "Extracting..." });
@@ -89,10 +119,10 @@ async function findOrInstallChoralOnce(context: vscode.ExtensionContext): Promis
             // Extract the ZIP file
             const zip = new AdmZip(zipPath);
             zip.extractAllTo(stagingDir, true);
-            console.log('✓ Extracted ZIP to:', stagingDir);
+            output.info(`Extracted ZIP to: ${stagingDir}`);
 
             if (!isInstalledJar(stagedJarPath)) {
-                throw new Error(`Non-empty JAR file not found at expected location: ${stagedJarPath}`);
+                throw new Error('Non-empty JAR file not found in the downloaded release.');
             }
 
             throwIfCancelled(token);
@@ -107,20 +137,21 @@ async function findOrInstallChoralOnce(context: vscode.ExtensionContext): Promis
                 if (!destinationExists || !isInstalledJar(jarPath)) {
                     throw error;
                 }
+                return 'Using Choral language server installed by another window.';
             }
 
-            console.log('✓ Choral JAR ready at:', jarPath);
-            return jarPath;
+            return 'Installed Choral language server.';
 
         } finally {
             try {
                 fs.rmSync(stagingDir, { recursive: true, force: true });
             } catch (cleanupError) {
-                console.warn('Failed to clean up Choral staging directory:', cleanupError);
+                output.warn(`Failed to clean up staging directory ${stagingDir}: ${String(cleanupError)}`);
             }
         }
     });
 
+    reportOutcome(outcome, output);
     return jarPath;
 }
 
@@ -154,10 +185,11 @@ async function downloadWithDeadline(
 
 function isInstalledJar(jarPath: string): boolean {
     try {
-        const stat = fs.lstatSync(jarPath);
+        const stat = fs.statSync(jarPath);
         return stat.isFile() && stat.size > 0;
     } catch (error) {
-        if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+        const code = (error as NodeJS.ErrnoException).code;
+        if (code === 'ENOENT' || code === 'ENOTDIR') {
             return false;
         }
         throw error;
