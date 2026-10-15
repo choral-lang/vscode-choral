@@ -68,4 +68,6 @@ Integration tests and end-to-end tests launch VS Code. End-to-end tests require 
 
 ## Releasing
 
-See [RELEASING.MD](RELEASING.MD) for release instructions.
+1. Bump the `version` number in `package.json`.
+2. Create a [new GitHub release](https://github.com/choral-lang/vscode-choral/releases/new). The tag needs to be in `v#.#.#` format (note the leading `v`) e.g. `v1.1.13`.
+3. Publishing the release triggers a [GitHub workflow](https://github.com/choral-lang/choral-vscode/actions/workflows/publish.yml) that validates the tag and pushes to the VS Code Marketplace.
