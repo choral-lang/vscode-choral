@@ -2,7 +2,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as https from 'https';
 import * as vscode from 'vscode';
-import { createWriteStream, createReadStream } from 'fs';
+import { createWriteStream } from 'fs';
+import { pipeline } from 'stream/promises';
 import AdmZip from 'adm-zip';
 
 const CHORAL_VERSION = '0.1.13';
@@ -77,9 +78,12 @@ export async function findOrInstallChoral(context: vscode.ExtensionContext): Pro
             return jarPath;
 
         } catch (error) {
-            // Clean up on error
-            if (fs.existsSync(zipPath)) {
+            try {
                 fs.unlinkSync(zipPath);
+            } catch (cleanupError) {
+                if ((cleanupError as NodeJS.ErrnoException).code !== 'ENOENT') {
+                    console.warn('Failed to clean up Choral ZIP:', cleanupError);
+                }
             }
             throw error;
         }
@@ -93,7 +97,7 @@ export async function findOrInstallChoral(context: vscode.ExtensionContext): Pro
  */
 function downloadFile(url: string, destPath: string): Promise<void> {
     return new Promise((resolve, reject) => {
-        https.get(url, (response) => {
+        https.get(url, async (response) => {
             // Follow redirects
             if (response.statusCode === 302 || response.statusCode === 301) {
                 if (response.headers.location) {
@@ -109,19 +113,12 @@ function downloadFile(url: string, destPath: string): Promise<void> {
                 return;
             }
 
-            const file = createWriteStream(destPath);
-            response.pipe(file);
-
-            file.on('finish', () => {
-                file.close();
+            try {
+                await pipeline(response, createWriteStream(destPath));
                 resolve();
-            });
-
-            file.on('error', (err) => {
-                file.close();
-                fs.unlinkSync(destPath);
-                reject(err);
-            });
+            } catch (error) {
+                reject(error);
+            }
         }).on('error', (err) => {
             reject(err);
         });
