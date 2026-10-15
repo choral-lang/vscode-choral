@@ -6,9 +6,39 @@ import { createWriteStream } from 'fs';
 import { pipeline } from 'stream/promises';
 import AdmZip from 'adm-zip';
 
-const CHORAL_VERSION = '0.1.13';
-const CHORAL_ZIP_URL = `https://github.com/choral-lang/choral/releases/download/v${CHORAL_VERSION}/choral-${CHORAL_VERSION}.zip`;
+const CHORAL_LATEST_RELEASE_URL = 'https://api.github.com/repos/choral-lang/choral/releases/latest';
 const DOWNLOAD_TIMEOUT_MS = 120_000;
+
+/**
+ * Finds the latest stable version published with an installable GitHub ZIP.
+ * GitHub's latest-release endpoint excludes drafts and prereleases.
+ */
+export async function getLatestChoralVersion(signal: AbortSignal): Promise<string> {
+    const response = await fetch(CHORAL_LATEST_RELEASE_URL, {
+        signal,
+        headers: {
+            'User-Agent': 'vscode-choral',
+            'Accept': 'application/vnd.github+json'
+        }
+    });
+    if (!response.ok) {
+        await response.body?.cancel();
+        throw new Error(`Could not look up the latest Choral version: HTTP ${response.status}`);
+    }
+    const release: unknown = await response.json();
+    if (!release || typeof release !== 'object' || !('tag_name' in release) ||
+        typeof release.tag_name !== 'string' || !/^v\d+\.\d+\.\d+$/.test(release.tag_name)) {
+        throw new Error('The latest Choral release has an invalid version tag.');
+    }
+    const version = release.tag_name.slice(1);
+    const assetName = `choral-${version}.zip`;
+    if (!('assets' in release) || !Array.isArray(release.assets) ||
+        !release.assets.some((asset: unknown) => asset !== null && typeof asset === 'object' &&
+            'name' in asset && asset.name === assetName)) {
+        throw new Error(`The latest Choral release does not contain ${assetName}.`);
+    }
+    return version;
+}
 
 /**
  * Finds the Choral JAR, downloading it if necessary.
@@ -87,9 +117,6 @@ async function findOrInstallChoralOnce(
         return jarPath;
     }
 
-    // 3) Download the latest release
-    output.info(`Downloading Choral from: ${CHORAL_ZIP_URL}`);
-
     // Show progress notification
     const outcome = await vscode.window.withProgress({
         location: vscode.ProgressLocation.Notification,
@@ -97,7 +124,7 @@ async function findOrInstallChoralOnce(
         cancellable: true
     }, async (progress, token) => {
         throwIfCancelled(token);
-        progress.report({ message: "Downloading..." });
+        progress.report({ message: "Looking up the latest Choral release..." });
 
         // Keep staging on the same filesystem as the final directory for rename.
         const stagingDir = fs.mkdtempSync(path.join(storageDir, '.choral-install-'));
@@ -110,7 +137,7 @@ async function findOrInstallChoralOnce(
 
         try {
             // Download the ZIP file
-            await downloadWithDeadline(CHORAL_ZIP_URL, zipPath, token);
+            await downloadWithDeadline(zipPath, token, output, progress);
             output.info(`Downloaded ZIP to: ${zipPath}`);
 
             throwIfCancelled(token);
@@ -162,7 +189,8 @@ function throwIfCancelled(token: vscode.CancellationToken): void {
 }
 
 async function downloadWithDeadline(
-    url: string, destPath: string, token: vscode.CancellationToken
+    destPath: string, token: vscode.CancellationToken, output: vscode.LogOutputChannel,
+    progress: vscode.Progress<{ message?: string; increment?: number }>
 ): Promise<void> {
     const controller = new AbortController();
     const subscription = token.onCancellationRequested(() => {
@@ -171,12 +199,22 @@ async function downloadWithDeadline(
     if (token.isCancellationRequested) {
         controller.abort(new vscode.CancellationError());
     }
-    // One budget covers connection setup, all redirects, and the entire transfer.
+    // One budget covers release lookup, connection setup, redirects, and transfer.
     const timer = setTimeout(() => {
         controller.abort(new Error('Download timed out after 2 minutes. Check your connection and retry.'));
     }, DOWNLOAD_TIMEOUT_MS);
     try {
+        const version = await getLatestChoralVersion(controller.signal);
+        const url = `https://github.com/choral-lang/choral/releases/download/v${version}/choral-${version}.zip`;
+        output.info(`Latest Choral version: ${version}`);
+        output.info(`Downloading Choral from: ${url}`);
+        progress.report({ message: `Downloading Choral ${version}...` });
         await downloadFile(url, destPath, controller.signal);
+    } catch (error) {
+        if (controller.signal.aborted) {
+            throw controller.signal.reason;
+        }
+        throw error;
     } finally {
         clearTimeout(timer);
         subscription.dispose();

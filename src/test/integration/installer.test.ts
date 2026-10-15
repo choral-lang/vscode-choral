@@ -10,7 +10,7 @@ import { execFile } from 'child_process';
 import { promisify } from 'util';
 import AdmZip from 'adm-zip';
 import * as vscode from 'vscode';
-import { findOrInstallChoral } from '../../installer';
+import { findOrInstallChoral, getLatestChoralVersion } from '../../installer';
 
 describe('Choral installer', () => {
 	let storageDir: string;
@@ -23,7 +23,9 @@ describe('Choral installer', () => {
 	let infoMessages: string[];
 	let logMessages: string[];
 	let detailsShown: number;
+	let lookupCount: number;
 	const originalGet = https.get;
+	const originalFetch = global.fetch;
 	const originalRmSync = fs.rmSync;
 	const originalWithProgress = vscode.window.withProgress;
 	const originalShowErrorMessage = vscode.window.showErrorMessage;
@@ -45,6 +47,15 @@ describe('Choral installer', () => {
 		infoMessages = [];
 		logMessages = [];
 		detailsShown = 0;
+		lookupCount = 0;
+		global.fetch = async (_url, options) => {
+			lookupCount++;
+			options?.signal?.throwIfAborted();
+			return new Response(JSON.stringify({
+				tag_name: 'v9.8.7',
+				assets: [{ name: 'choral-9.8.7.zip' }]
+			}));
+		};
 		vscode.window.createOutputChannel = ((name: string) => {
 			assert.strictEqual(name, 'Choral Installer');
 			return {
@@ -73,6 +84,7 @@ describe('Choral installer', () => {
 
 	afterEach(() => {
 		https.get = originalGet;
+		global.fetch = originalFetch;
 		fs.rmSync = originalRmSync;
 		vscode.window.withProgress = originalWithProgress;
 		vscode.window.showErrorMessage = originalShowErrorMessage;
@@ -109,6 +121,69 @@ describe('Choral installer', () => {
 		requests.push(request);
 		return request;
 	}
+
+	it('looks up the latest stable version using GitHub release metadata', async () => {
+		global.fetch = async (url, options) => {
+			assert.strictEqual(url, 'https://api.github.com/repos/choral-lang/choral/releases/latest');
+			assert.ok(new Headers(options?.headers).get('User-Agent'));
+			assert.ok(options?.signal);
+			return new Response(JSON.stringify({
+				tag_name: 'v2.3.4', assets: [{ name: 'choral-2.3.4.zip' }]
+			}));
+		};
+		assert.strictEqual(await getLatestChoralVersion(new AbortController().signal), '2.3.4');
+	});
+
+	it('rejects HTTP failures, invalid metadata, and releases without a matching ZIP', async () => {
+		for (const response of [
+			new Response('rate limit', { status: 403 }),
+			new Response('not JSON'),
+			new Response(JSON.stringify({ tag_name: 'unexpected', assets: [] })),
+			new Response(JSON.stringify({ tag_name: 'v2.3.4', assets: [] }))
+		]) {
+			global.fetch = async () => response;
+			await assert.rejects(getLatestChoralVersion(new AbortController().signal));
+		}
+	});
+
+	it('uses the discovered version for the archive download', async () => {
+		mockResponse(response => response.end(archive()));
+		const get = https.get;
+		https.get = ((url: string, callback: (response: IncomingMessage) => void) => {
+			assert.strictEqual(url, 'https://github.com/choral-lang/choral/releases/download/v9.8.7/choral-9.8.7.zip');
+			return get(url, callback);
+		}) as typeof https.get;
+
+		await findOrInstallChoral(context);
+
+		assert.strictEqual(lookupCount, 1);
+		assert.ok(logMessages.includes('Latest Choral version: 9.8.7'));
+	});
+
+	it('cancels a stalled version lookup without downloading', async () => {
+		global.fetch = (_url, options) => new Promise((_resolve, reject) => {
+			const signal = options!.signal!;
+			signal.addEventListener('abort', () => reject(signal.reason), { once: true });
+			setImmediate(() => cancellation.cancel());
+		});
+
+		await assert.rejects(findOrInstallChoral(context), vscode.CancellationError);
+		assert.strictEqual(requests.length, 0);
+		assertNoStagingDirectories();
+	});
+
+	it('applies the overall deadline to a stalled version lookup', async () => {
+		const expire = captureDeadline();
+		global.fetch = (_url, options) => new Promise((_resolve, reject) => {
+			const signal = options!.signal!;
+			signal.addEventListener('abort', () => reject(signal.reason), { once: true });
+			setImmediate(expire);
+		});
+
+		await assert.rejects(findOrInstallChoral(context), /Download timed out/);
+		assert.strictEqual(requests.length, 0);
+		assertNoStagingDirectories();
+	});
 
 	function captureDeadline(): () => void {
 		let expire: (() => void) | undefined;
@@ -265,6 +340,7 @@ describe('Choral installer', () => {
 
 		assert.strictEqual(await findOrInstallChoral(context), jarPath);
 		assert.strictEqual(infoMessages.at(-1), 'Using installed Choral language server.');
+		assert.strictEqual(lookupCount, 1, 'Reusing the cached server must not perform another lookup.');
 	});
 
 	it('isolates concurrent downloads and reuses the first published installation', async () => {
@@ -456,6 +532,7 @@ describe('Choral installer', () => {
 
 		assert.strictEqual(requests.length, 0);
 		assert.deepStrictEqual(infoMessages, ['Using Choral language server from CHORAL_HOME.']);
+		assert.strictEqual(lookupCount, 0);
 		assert.ok(logMessages.some(message => message.includes(jarPath)));
 		assert.ok(!infoMessages.some(message => message.includes(home)));
 		assert.ok(!fs.existsSync(path.join(storageDir, 'choral-server')));
