@@ -40,6 +40,22 @@ window "the debugger window". There are three places to look for logs:
    is controlled in the host window by adjusting the VS Code setting
    `choral.trace.server`.
 
+### Debugging a fresh installation
+
+In VS Code's Run and Debug view, select **Run Extension — Fresh install** and press
+F5. This clears `CHORAL_HOME` for the Extension Development Host, resets the
+dedicated `~/.choral-installer-debug` user-data directory, and compiles the
+extension before opening a new window. Open a `.ch` file there to activate Choral
+and exercise the download, Cancel, Retry, and **View details** notifications.
+
+The entire debug profile is deleted before each launch, including its settings
+and extension storage. Close any previous fresh-install debug window before
+launching again; do not use this profile for normal work. Your regular VS Code
+profile and `CHORAL_HOME` environment variable are unchanged. Java must be on
+`PATH` to start the downloaded server.
+
+Select **Run Extension** instead to retain the existing debugging behavior.
+
 ### Tests
 
 - `npm test` runs unit and integration tests

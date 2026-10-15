@@ -23,7 +23,16 @@ export async function activate(context: vscode.ExtensionContext) {
 	// Refer to: https://github.com/tempo-lang/vscode-tempo/blob/main/src/extension.ts
 	try {
 		// Ensure the Choral JAR is available, downloading if necessary
-		const serverJarPath: string = await findOrInstallChoral(context);
+		let serverJarPath: string;
+		try {
+			serverJarPath = await findOrInstallChoral(context);
+		} catch (error) {
+			// The installer already offered retry, or the user cancelled.
+			if (!(error instanceof vscode.CancellationError)) {
+				console.error('Choral installation failed:', error);
+			}
+			return;
+		}
 		console.log('Using JAR at:', serverJarPath);
 
 		const serverOptions: ServerOptions = {

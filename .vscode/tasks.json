@@ -15,6 +15,49 @@
 				"kind": "build",
 				"isDefault": true
 			}
+		},
+		{
+			"label": "Reset fresh install debug profile",
+			"type": "shell",
+			"command": "node",
+			"args": [
+				"-e",
+				"require(\"fs\").rmSync(process.argv[1], { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });",
+				"${userHome}/.choral-installer-debug"
+			],
+			"osx": {
+				"options": {
+					"shell": {
+						"executable": "/bin/zsh",
+						"args": ["-l", "-i", "-c"]
+					}
+				}
+			},
+			"problemMatcher": []
+		},
+		{
+			"label": "Compile fresh install debug",
+			"type": "shell",
+			"command": "npm",
+			"args": ["run", "compile"],
+			"osx": {
+				"options": {
+					"shell": {
+						"executable": "/bin/zsh",
+						"args": ["-l", "-i", "-c"]
+					}
+				}
+			},
+			"problemMatcher": "$tsc"
+		},
+		{
+			"label": "Prepare fresh install debug",
+			"dependsOrder": "sequence",
+			"dependsOn": [
+				"Reset fresh install debug profile",
+				"Compile fresh install debug"
+			],
+			"problemMatcher": []
 		}
 	]
 }

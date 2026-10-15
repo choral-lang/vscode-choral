@@ -69,10 +69,10 @@ describe('Choral language server (end-to-end)', () => {
 		assert.ok(extension, 'The Choral extension must be loaded in the test host.');
 		await extension.activate();
 		if (installStorage) {
-			assert.ok(fs.existsSync(path.join(installStorage, 'choral', 'dist', 'choral-standalone.jar')),
+			assert.ok(fs.existsSync(path.join(installStorage, 'choral-server', 'dist', 'choral-standalone.jar')),
 				'The installer must extract the downloaded JAR into extension storage.');
-			assert.ok(!fs.existsSync(path.join(installStorage, 'choral.zip')),
-				'The installer must remove the downloaded ZIP after extraction.');
+			assert.ok(!fs.readdirSync(installStorage).some(name => name.startsWith('.choral-install-')),
+				'The installer must remove its staging directory after publication.');
 		}
 	});
 
