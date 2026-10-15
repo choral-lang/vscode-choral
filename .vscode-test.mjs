@@ -3,13 +3,14 @@ import { randomUUID } from 'node:crypto';
 import { rmSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-// Each install run gets its own profile, so it cannot reuse a downloaded JAR.
-const installProfile = fileURLToPath(new URL(`.vscode-test/install/${randomUUID().slice(0, 8)}/`, import.meta.url));
+const installProfile = fileURLToPath(
+  new URL(`.vscode-test/install/${randomUUID().slice(0, 8)}/`, import.meta.url)
+);
 
-// The CLI exits after VS Code stops, on both successful and failed test runs.
-// Remove the entire isolated profile, including the downloaded server.
 process.once('exit', () => {
-	rmSync(installProfile, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+  rmSync(installProfile, {
+    recursive: true, force: true, maxRetries: 5, retryDelay: 200
+  });
 });
 
 export default defineConfig([

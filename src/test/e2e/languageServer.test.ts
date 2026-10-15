@@ -18,11 +18,10 @@ function hasSyntaxError(diagnostics: readonly vscode.Diagnostic[]): boolean {
 }
 
 function hasNoErrors(diagnostics: readonly vscode.Diagnostic[]): boolean {
-	return diagnostics.every(item => item.severity !== vscode.DiagnosticSeverity.Error);
+  return diagnostics.every(item =>
+    item.severity !== vscode.DiagnosticSeverity.Error);
 }
 
-// Require a new diagnostic event, even for an empty result. An initial empty
-// collection alone does not prove the server processed the document.
 async function expectDiagnostics(
 	uri: vscode.Uri,
 	predicate: (diagnostics: readonly vscode.Diagnostic[]) => boolean,
