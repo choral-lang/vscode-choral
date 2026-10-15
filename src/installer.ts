@@ -29,15 +29,13 @@ export async function findOrInstallChoral(context: vscode.ExtensionContext): Pro
 
     // 2) Check if the JAR is already in VS Code storage
     const storageDir = context.globalStorageUri.fsPath;
+    fs.mkdirSync(storageDir, { recursive: true });
 
-    // Ensure storage directory exists
-    if (!fs.existsSync(storageDir)) {
-        fs.mkdirSync(storageDir, { recursive: true });
-    }
+    // Only this directory is published atomically.
+    const installDir = path.join(storageDir, 'choral-server');
+    const jarPath = path.join(installDir, 'dist', 'choral-standalone.jar');
 
-    const jarPath = path.join(storageDir, 'choral', 'dist', 'choral-standalone.jar');
-
-    if (fs.existsSync(jarPath)) {
+    if (isInstalledJar(jarPath)) {
         console.log('✓ Choral JAR already exists at:', jarPath);
         return jarPath;
     }
@@ -53,7 +51,11 @@ export async function findOrInstallChoral(context: vscode.ExtensionContext): Pro
     }, async (progress) => {
         progress.report({ message: "Downloading..." });
 
-        const zipPath = path.join(storageDir, 'choral.zip');
+        // Keep staging on the same filesystem as the final directory for rename.
+        const stagingDir = fs.mkdtempSync(path.join(storageDir, '.choral-install-'));
+        const zipPath = path.join(stagingDir, 'choral.zip');
+        const stagedInstallDir = path.join(stagingDir, 'choral');
+        const stagedJarPath = path.join(stagedInstallDir, 'dist', 'choral-standalone.jar');
 
         try {
             // Download the ZIP file
@@ -64,32 +66,51 @@ export async function findOrInstallChoral(context: vscode.ExtensionContext): Pro
 
             // Extract the ZIP file
             const zip = new AdmZip(zipPath);
-            zip.extractAllTo(storageDir, true);
-            console.log('✓ Extracted ZIP to:', storageDir);
+            zip.extractAllTo(stagingDir, true);
+            console.log('✓ Extracted ZIP to:', stagingDir);
 
-            // Clean up ZIP file
-            fs.unlinkSync(zipPath);
+            if (!isInstalledJar(stagedJarPath)) {
+                throw new Error(`Non-empty JAR file not found at expected location: ${stagedJarPath}`);
+            }
 
-            if (!fs.existsSync(jarPath)) {
-                throw new Error(`JAR file not found at expected location: ${jarPath}`);
+            try {
+                fs.renameSync(stagedInstallDir, installDir);
+            } catch (error) {
+                // A completed, non-empty directory cannot be replaced by rename.
+                // Another extension host may have published its install first.
+                const code = (error as NodeJS.ErrnoException).code;
+                const destinationExists = code === 'EEXIST' || code === 'ENOTEMPTY' ||
+                    code === 'EPERM' || code === 'EACCES';
+                if (!destinationExists || !isInstalledJar(jarPath)) {
+                    throw error;
+                }
             }
 
             console.log('✓ Choral JAR ready at:', jarPath);
             return jarPath;
 
-        } catch (error) {
+        } finally {
             try {
-                fs.unlinkSync(zipPath);
+                fs.rmSync(stagingDir, { recursive: true, force: true });
             } catch (cleanupError) {
-                if ((cleanupError as NodeJS.ErrnoException).code !== 'ENOENT') {
-                    console.warn('Failed to clean up Choral ZIP:', cleanupError);
-                }
+                console.warn('Failed to clean up Choral staging directory:', cleanupError);
             }
-            throw error;
         }
     });
 
     return jarPath;
+}
+
+function isInstalledJar(jarPath: string): boolean {
+    try {
+        const stat = fs.lstatSync(jarPath);
+        return stat.isFile() && stat.size > 0;
+    } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+            return false;
+        }
+        throw error;
+    }
 }
 
 /**

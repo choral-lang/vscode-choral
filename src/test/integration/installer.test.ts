@@ -1,20 +1,23 @@
 import * as assert from 'assert';
-import * as fs from 'fs';
+import fs = require('fs');
 import * as os from 'os';
 import * as path from 'path';
 import https = require('https');
 import { ClientRequest, IncomingMessage } from 'http';
 import { EventEmitter } from 'events';
 import { PassThrough } from 'stream';
+import { execFile } from 'child_process';
+import { promisify } from 'util';
 import AdmZip from 'adm-zip';
 import * as vscode from 'vscode';
 import { findOrInstallChoral } from '../../installer';
 
-describe('Choral installer download failures', () => {
+describe('Choral installer', () => {
 	let storageDir: string;
 	let context: vscode.ExtensionContext;
 	let choralHome: string | undefined;
 	const originalGet = https.get;
+	const originalRmSync = fs.rmSync;
 
 	beforeEach(() => {
 		storageDir = fs.mkdtempSync(path.join(os.tmpdir(), 'choral-installer-'));
@@ -25,6 +28,7 @@ describe('Choral installer download failures', () => {
 
 	afterEach(() => {
 		https.get = originalGet;
+		fs.rmSync = originalRmSync;
 		if (choralHome === undefined) {
 			delete process.env.CHORAL_HOME;
 		} else {
@@ -33,12 +37,23 @@ describe('Choral installer download failures', () => {
 		fs.rmSync(storageDir, { recursive: true, force: true });
 	});
 
-	function mockResponse(send: (response: PassThrough) => void): PassThrough {
+	function assertNoStagingDirectories(): void {
+		assert.ok(!fs.readdirSync(storageDir).some(name => name.startsWith('.choral-install-')));
+	}
+
+	function archive(contents = 'test JAR contents'): Buffer {
+		const zip = new AdmZip();
+		zip.addFile('choral/dist/choral-standalone.jar', Buffer.from(contents));
+		return zip.toBuffer();
+	}
+
+	function mockResponse(send: (response: PassThrough) => void, prepare?: () => void): PassThrough {
 		const response = new PassThrough();
 		Object.assign(response, { statusCode: 200, headers: {} });
 		https.get = ((_url: unknown, callback: (response: IncomingMessage) => void) => {
 			const request = new EventEmitter();
 			process.nextTick(() => {
+				prepare?.();
 				callback(response as unknown as IncomingMessage);
 				send(response);
 			});
@@ -56,7 +71,8 @@ describe('Choral installer download failures', () => {
 		const jarPath = await findOrInstallChoral(context);
 
 		assert.deepStrictEqual(fs.readFileSync(jarPath), contents);
-		assert.ok(!fs.existsSync(path.join(storageDir, 'choral.zip')));
+		assert.strictEqual(jarPath, path.join(storageDir, 'choral-server', 'dist', 'choral-standalone.jar'));
+		assertNoStagingDirectories();
 	});
 
 	it('rejects an interrupted response and removes the partial ZIP', async () => {
@@ -69,20 +85,21 @@ describe('Choral installer download failures', () => {
 		await assert.rejects(findOrInstallChoral(context), error => error === failure);
 
 		assert.ok(response.destroyed);
-		assert.ok(!fs.existsSync(path.join(storageDir, 'choral.zip')));
+		assertNoStagingDirectories();
+		assert.ok(!fs.existsSync(path.join(storageDir, 'choral-server')));
 	});
 
-	it('preserves a destination-open error even when cleanup also fails', async () => {
-		// Opening a directory as a file fails; unlinking that directory also fails.
-		const zipPath = path.join(storageDir, 'choral.zip');
-		fs.mkdirSync(zipPath);
-		const response = mockResponse(stream => stream.write('partial ZIP'));
+	it('rejects destination-open errors and cleans its staging directory', async () => {
+		const response = mockResponse(stream => stream.write('partial ZIP'), () => {
+			const stagingDir = fs.readdirSync(storageDir).find(name => name.startsWith('.choral-install-'))!;
+			fs.mkdirSync(path.join(storageDir, stagingDir, 'choral.zip'));
+		});
 
 		await assert.rejects(findOrInstallChoral(context), error =>
 			(error as NodeJS.ErrnoException).syscall === 'open');
 
 		assert.ok(response.destroyed);
-		assert.ok(fs.statSync(zipPath).isDirectory());
+		assertNoStagingDirectories();
 	});
 
 	it('preserves a request error when there is no ZIP to clean up', async () => {
@@ -94,6 +111,130 @@ describe('Choral installer download failures', () => {
 		}) as typeof https.get;
 
 		await assert.rejects(findOrInstallChoral(context), error => error === failure);
-		assert.ok(!fs.existsSync(path.join(storageDir, 'choral.zip')));
+		assertNoStagingDirectories();
+	});
+
+	it('does not mask a download error when staging cleanup fails', async () => {
+		const failure = new Error('Connection interrupted');
+		mockResponse(stream => setImmediate(() => stream.destroy(failure)));
+		fs.rmSync = () => {
+			throw new Error('Cleanup failed');
+		};
+
+		await assert.rejects(findOrInstallChoral(context), error => error === failure);
+	});
+
+	it('rejects a missing, empty, or directory JAR without publishing it, then retries', async () => {
+		for (const entry of ['other.txt', 'choral/dist/choral-standalone.jar', 'choral/dist/choral-standalone.jar/']) {
+			const zip = new AdmZip();
+			zip.addFile(entry, Buffer.alloc(0));
+			mockResponse(response => response.end(zip.toBuffer()));
+
+			await assert.rejects(findOrInstallChoral(context), /Non-empty JAR file not found/);
+			assert.ok(!fs.existsSync(path.join(storageDir, 'choral-server')));
+			assertNoStagingDirectories();
+		}
+
+		mockResponse(response => response.end(archive()));
+		const jarPath = await findOrInstallChoral(context);
+		assert.strictEqual(fs.readFileSync(jarPath, 'utf8'), 'test JAR contents');
+		assertNoStagingDirectories();
+	});
+
+	it('rejects an invalid ZIP without publishing it and can retry', async () => {
+		mockResponse(response => response.end('not a ZIP'));
+
+		await assert.rejects(findOrInstallChoral(context));
+		assert.ok(!fs.existsSync(path.join(storageDir, 'choral-server')));
+		assertNoStagingDirectories();
+
+		mockResponse(response => response.end(archive('complete JAR')));
+		const jarPath = await findOrInstallChoral(context);
+		assert.strictEqual(fs.readFileSync(jarPath, 'utf8'), 'complete JAR');
+		assertNoStagingDirectories();
+	});
+
+	it('does not reuse a potentially partial legacy installation', async () => {
+		const legacyDir = path.join(storageDir, 'choral', 'dist');
+		fs.mkdirSync(legacyDir, { recursive: true });
+		fs.writeFileSync(path.join(legacyDir, 'choral-standalone.jar'), 'partial legacy JAR');
+		mockResponse(response => response.end(archive('fresh JAR')));
+
+		const jarPath = await findOrInstallChoral(context);
+
+		assert.strictEqual(fs.readFileSync(jarPath, 'utf8'), 'fresh JAR');
+		assertNoStagingDirectories();
+	});
+
+	it('reuses a published installation without downloading again', async () => {
+		mockResponse(response => response.end(archive()));
+		const jarPath = await findOrInstallChoral(context);
+		https.get = (() => {
+			throw new Error('Unexpected download');
+		}) as typeof https.get;
+
+		assert.strictEqual(await findOrInstallChoral(context), jarPath);
+	});
+
+	it('isolates concurrent downloads and reuses the first published installation', async () => {
+		const responses: PassThrough[] = [];
+		let downloadsReady!: () => void;
+		const ready = new Promise<void>(resolve => { downloadsReady = resolve; });
+		https.get = ((_url: unknown, callback: (response: IncomingMessage) => void) => {
+			const response = new PassThrough();
+			Object.assign(response, { statusCode: 200, headers: {} });
+			process.nextTick(() => {
+				callback(response as unknown as IncomingMessage);
+				responses.push(response);
+				if (responses.length === 2) {
+					downloadsReady();
+				}
+			});
+			return new EventEmitter() as ClientRequest;
+		}) as typeof https.get;
+
+		const first = findOrInstallChoral(context);
+		const second = findOrInstallChoral(context);
+		const installs = Promise.all([first, second]);
+		await ready;
+		try {
+			assert.strictEqual(fs.readdirSync(storageDir).filter(name => name.startsWith('.choral-install-')).length, 2);
+			assert.ok(!fs.existsSync(path.join(storageDir, 'choral-server')));
+		} finally {
+			responses[0].end(archive('winner'));
+			responses[1].end(archive('loser'));
+		}
+		const [firstJar, secondJar] = await installs;
+
+		assert.strictEqual(firstJar, secondJar);
+		// Either download may finish first, but both callers see the same complete file.
+		assert.ok(['winner', 'loser'].includes(fs.readFileSync(firstJar, 'utf8')));
+		assertNoStagingDirectories();
+	});
+
+	it('reuses an installation published by another process while downloading', async () => {
+		let downloadStarted!: () => void;
+		const started = new Promise<void>(resolve => { downloadStarted = resolve; });
+		const response = mockResponse(() => downloadStarted());
+		const installing = findOrInstallChoral(context);
+		await started;
+		try {
+			await promisify(execFile)(process.execPath, ['-e', `
+				const fs = require('fs');
+				const path = require('path');
+				const storage = process.argv[1];
+				const staging = fs.mkdtempSync(path.join(storage, '.other-process-'));
+				fs.mkdirSync(path.join(staging, 'dist'));
+				fs.writeFileSync(path.join(staging, 'dist', 'choral-standalone.jar'), 'other process');
+				fs.renameSync(staging, path.join(storage, 'choral-server'));
+			`, storageDir], { env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' } });
+		} finally {
+			response.end(archive('this process'));
+			await installing;
+		}
+
+		const jarPath = await installing;
+		assert.strictEqual(fs.readFileSync(jarPath, 'utf8'), 'other process');
+		assertNoStagingDirectories();
 	});
 });
