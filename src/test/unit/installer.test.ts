@@ -1,0 +1,2 @@
+describe('Choral installer (unit)', () => {
+});

@@ -40,6 +40,16 @@ window "the debugger window". There are three places to look for logs:
    is controlled in the host window by adjusting the VS Code setting
    `choral.trace.server`.
 
+### Tests
+
+- `npm test` runs unit and integration tests
+- `npm run test:unit` runs unit tests
+- `npm run test:integration` runs integration tests
+- `npm run test:e2e` runs end-to-end tests, assuming `CHORAL_HOME` is set
+- `npm run test:e2e:install` runs end-to-end tests, downloading Choral automatically
+
+Integration tests and end-to-end tests launch VS Code. End-to-end tests require Java on `PATH`.
+
 ## Releasing
 
 1. Bump the `version` number in `package.json`.
