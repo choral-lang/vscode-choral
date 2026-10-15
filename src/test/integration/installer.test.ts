@@ -59,7 +59,7 @@ describe('Choral installer', () => {
 			infoMessages.push(message);
 			assert.strictEqual(action, 'View details');
 			return undefined;
-		}) as typeof vscode.window.showInformationMessage;
+		}) as unknown as typeof vscode.window.showInformationMessage;
 		vscode.window.withProgress = (options, task) => {
 			assert.strictEqual(options.cancellable, true);
 			return Promise.resolve(task({ report: () => {} }, cancellation.token));
@@ -68,7 +68,7 @@ describe('Choral installer', () => {
 			errorMessages.push(message);
 			errorActions.push(actions);
 			return undefined;
-		}) as typeof vscode.window.showErrorMessage;
+		}) as unknown as typeof vscode.window.showErrorMessage;
 	});
 
 	afterEach(() => {
@@ -436,7 +436,7 @@ describe('Choral installer', () => {
 			assertNoStagingDirectories();
 			mockResponse(response => response.end(archive('retried JAR')));
 			return 'Retry';
-		}) as typeof vscode.window.showErrorMessage;
+		}) as unknown as typeof vscode.window.showErrorMessage;
 
 		const jarPath = await findOrInstallChoral(context);
 
@@ -506,7 +506,7 @@ describe('Choral installer', () => {
 			assert.strictEqual(detailsShown, 1);
 			fs.writeFileSync(path.join(home, 'choral-standalone.jar'), 'repaired JAR');
 			return 'Retry';
-		}) as typeof vscode.window.showErrorMessage;
+		}) as unknown as typeof vscode.window.showErrorMessage;
 
 		const jarPath = await findOrInstallChoral(context);
 
@@ -521,7 +521,7 @@ describe('Choral installer', () => {
 		vscode.window.showInformationMessage = (async (_message: string, action: string) => {
 			assert.strictEqual(action, 'View details');
 			return 'View details';
-		}) as typeof vscode.window.showInformationMessage;
+		}) as unknown as typeof vscode.window.showInformationMessage;
 
 		const jarPath = await findOrInstallChoral(context);
 		await Promise.resolve();
