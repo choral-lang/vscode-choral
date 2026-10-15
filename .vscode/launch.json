@@ -16,6 +16,23 @@
 				"${workspaceFolder}/out/**/*.js"
 			],
 			"preLaunchTask": "${defaultBuildTask}"
+		},
+		{
+			"name": "Run Extension — Fresh install",
+			"type": "extensionHost",
+			"request": "launch",
+			"env": {
+				"CHORAL_HOME": ""
+			},
+			"args": [
+				"--extensionDevelopmentPath=${workspaceFolder}",
+				"--user-data-dir=${userHome}/.choral-installer-debug",
+				"--disable-extensions"
+			],
+			"outFiles": [
+				"${workspaceFolder}/out/**/*.js"
+			],
+			"preLaunchTask": "Prepare fresh install debug"
 		}
 	]
 }
